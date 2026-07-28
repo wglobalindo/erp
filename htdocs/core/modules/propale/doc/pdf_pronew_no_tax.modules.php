@@ -1754,20 +1754,6 @@ class pdf_pronew_no_tax extends ModelePDFPropales
 
 		$pdf->SetXY($posx, $tab_top + $tab_hl);
 		$pdf->MultiCell($largcol, $tab_hl*3, '', 1, 'R'); */
-		$sign=$conf->mycompany->dir_output.'/signature.jpg';
-			if (is_readable($sign))
-			{
-			    $height=pdf_getHeightForLogo($sign);
-			    //$pdf->Image($sign, $this->marge_gauche, $posy, 0, $height);	// width=0 (auto)
-			    $pdf->Image($sign, $posx+30, $posy+10, 0, $height);	// width=0 (auto)
-			}
-			else
-			{
-				$pdf->SetTextColor(200,0,0);
-				$pdf->SetFont('','B',$default_font_size - 2);
-				$pdf->MultiCell(100, 3, $outputlangs->transnoentities("ErrorLogoFileNotFound",$sign), 0, 'L');
-				$pdf->MultiCell(100, 3, $outputlangs->transnoentities("ErrorGoToGlobalSetup"), 0, 'L');
-			}
 
 	}
 }
