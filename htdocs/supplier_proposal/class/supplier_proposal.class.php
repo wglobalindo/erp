@@ -583,9 +583,11 @@ class SupplierProposal extends CommonObject
 				$txtva = preg_replace('/\s*\(.*\)/', '', $txtva); // Remove code into vatrate.
 			}
 
-			if (isModEnabled("multicurrency") && $pu_ht_devise > 0) {
-				$pu = 0;
-			}
+			// WINSOFT PATCH: keep the unit price entered in main currency when a foreign currency price is also given
+			// (Dolibarr resets $pu to 0 here and recomputes it from $pu_ht_devise)
+			// if (isModEnabled("multicurrency") && $pu_ht_devise > 0) {
+			// 	$pu = 0;
+			// }
 
 			$tabprice = calcul_price_total(
 				$qty,
@@ -794,9 +796,11 @@ class SupplierProposal extends CommonObject
 				$txtva = preg_replace('/\s*\(.*\)/', '', $txtva); // Remove code into vatrate.
 			}
 
-			if (isModEnabled("multicurrency") && $pu_ht_devise > 0) {
-				$pu = 0;
-			}
+			// WINSOFT PATCH: keep the unit price entered in main currency when a foreign currency price is also given
+			// (Dolibarr resets $pu to 0 here and recomputes it from $pu_ht_devise)
+			// if (isModEnabled("multicurrency") && $pu_ht_devise > 0) {
+			// 	$pu = 0;
+			// }
 
 			$tabprice = calcul_price_total(
 				$qty,
