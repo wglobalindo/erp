@@ -155,7 +155,7 @@ if ($id > 0 || !empty($ref)) {
 
 
 		if ($user->hasRight('commande', 'lire')) {
-			$sql = "SELECT DISTINCT s.nom as name, s.rowid as socid, s.code_client, c.rowid, d.subprice as subprice, d.total_ht as total_ht, c.ref,"; // WINSOFT PATCH: unit price column
+			$sql = "SELECT DISTINCT s.nom as name, s.rowid as socid, s.code_client, c.rowid, d.total_ht as total_ht, c.ref,";
 			$sql .= " c.ref_client,";
 			$sql .= " c.date_commande, c.fk_statut as statut, c.facture, c.rowid as commandeid, d.rowid, d.qty,";
 			$sql .= " c.date_livraison as delivery_date";
@@ -270,8 +270,7 @@ if ($id > 0 || !empty($ref)) {
 				print_liste_field_titre("OrderDate", $_SERVER["PHP_SELF"], "c.date_commande", "", $option, '', $sortfield, $sortorder, 'center ');
 				print_liste_field_titre('DateDeliveryPlanned', $_SERVER['PHP_SELF'], 'c.date_livraison', '', $option, '', $sortfield, $sortorder, 'center ');
 				print_liste_field_titre("Qty", $_SERVER["PHP_SELF"], "d.qty", "", $option, '', $sortfield, $sortorder, 'center ');
-				print_liste_field_titre("PriceUHT", $_SERVER["PHP_SELF"], "d.subprice", "", $option, 'align="right"', $sortfield, $sortorder); // WINSOFT PATCH: unit price column
-				print_liste_field_titre("AmountHT", $_SERVER["PHP_SELF"], "d.total_ht", "", $option, '', $sortfield, $sortorder, 'right '); // WINSOFT PATCH: unit price column (sort on line amount)
+				print_liste_field_titre("AmountHT", $_SERVER["PHP_SELF"], "c.total_ht", "", $option, '', $sortfield, $sortorder, 'right ');
 				print_liste_field_titre("Status", $_SERVER["PHP_SELF"], "c.fk_statut", "", $option, '', $sortfield, $sortorder, 'right ');
 				print "</tr>\n";
 
@@ -300,7 +299,6 @@ if ($id > 0 || !empty($ref)) {
 						print dol_print_date($db->jdate($objp->delivery_date), 'dayhour');
 						print '</td>';
 						print  '<td class="center">'.$objp->qty."</td>\n";
-						print '<td class="right">'.price($objp->subprice)."</td>\n"; // WINSOFT PATCH: unit price column
 						print '<td align="right">'.price($objp->total_ht)."</td>\n";
 						print '<td align="right">'.$orderstatic->LibStatut($objp->statut, $objp->facture, 5).'</td>';
 						print "</tr>\n";
@@ -317,7 +315,6 @@ if ($id > 0 || !empty($ref)) {
 				// delivery planned date
 				print '<td></td>';
 				print '<td class="center">'.$total_qty.'</td>';
-				print '<td></td>'; // WINSOFT PATCH: unit price column
 				print '<td align="right">'.price($total_ht).'</td>';
 				print '<td></td>';
 				print "</table>";

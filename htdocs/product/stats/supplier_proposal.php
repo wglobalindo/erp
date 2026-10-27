@@ -148,7 +148,7 @@ if ($id > 0 || !empty($ref)) {
 
 
 		if ($user->hasRight('propal', 'lire')) {
-			$sql = "SELECT DISTINCT s.nom as name, s.rowid as socid, p.rowid as propalid, p.ref, d.subprice as subprice, d.total_ht as amount,"; // WINSOFT PATCH: unit price column
+			$sql = "SELECT DISTINCT s.nom as name, s.rowid as socid, p.rowid as propalid, p.ref, d.total_ht as amount,";
 			//$sql .= " p.ref_supplier,";
 			$sql .= "p.date_valid, p.fk_statut as statut, d.rowid, d.qty";
 			if (!$user->hasRight('societe', 'client', 'voir')) {
@@ -245,7 +245,6 @@ if ($id > 0 || !empty($ref)) {
 				print_liste_field_titre("Company", $_SERVER["PHP_SELF"], "s.nom", "", $option, '', $sortfield, $sortorder);
 				print_liste_field_titre("DatePropal", $_SERVER["PHP_SELF"], "p.date_valid", "", $option, 'align="center"', $sortfield, $sortorder);
 				print_liste_field_titre("Qty", $_SERVER["PHP_SELF"], "d.qty", "", $option, 'align="center"', $sortfield, $sortorder);
-				print_liste_field_titre("PriceUHT", $_SERVER["PHP_SELF"], "d.subprice", "", $option, 'align="right"', $sortfield, $sortorder); // WINSOFT PATCH: unit price column
 				print_liste_field_titre("AmountHT", $_SERVER["PHP_SELF"], "p.total_ht", "", $option, 'align="right"', $sortfield, $sortorder);
 				print_liste_field_titre("Status", $_SERVER["PHP_SELF"], "p.fk_statut", "", $option, 'align="right"', $sortfield, $sortorder);
 				print "</tr>\n";
@@ -269,7 +268,6 @@ if ($id > 0 || !empty($ref)) {
 						print '<td class="center">';
 						print dol_print_date($db->jdate($objp->date_valid), 'dayhour')."</td>";
 						print "<td align=\"center\">".$objp->qty."</td>\n";
-						print '<td class="right">'.price($objp->subprice)."</td>\n"; // WINSOFT PATCH: unit price column
 						print '<td align="right">'.price($objp->amount).'</td>'."\n";
 						print '<td align="right">'.$propalstatic->LibStatut($objp->statut, 5).'</td>';
 						print "</tr>\n";
@@ -285,7 +283,6 @@ if ($id > 0 || !empty($ref)) {
 				}
 				print '<td colspan="2"></td>';
 				print '<td class="center">'.$total_qty.'</td>';
-				print '<td></td>'; // WINSOFT PATCH: unit price column
 				print '<td align="right">'.price($total_ht).'</td>';
 				print '<td></td>';
 				print "</table>";
