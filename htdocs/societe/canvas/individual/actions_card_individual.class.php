@@ -18,7 +18,7 @@
 /**
  *	\file       htdocs/societe/canvas/individual/actions_card_individual.class.php
  *	\ingroup    thirdparty
- *	\brief      Fichier de la classe Thirdparty card controller (individual canvas)
+ *	\brief      File for class for Thirdparty card controller with individual canvas
  */
 include_once DOL_DOCUMENT_ROOT.'/societe/canvas/actions_card_common.class.php';
 
@@ -33,7 +33,7 @@ class ActionsCardIndividual extends ActionsCardCommon
 	/**
 	 *    Constructor
 	 *
-	 *    @param	DoliDB	$db				Handler acces base de donnees
+	 *    @param	DoliDB	$db				Handler access base de donnees
 	 *    @param	string	$dirmodule		Name of directory of module
 	 *    @param	string	$targetmodule	Name of directory of module where canvas is stored
 	 *    @param	string	$canvas			Name of canvas
@@ -61,29 +61,17 @@ class ActionsCardIndividual extends ActionsCardCommon
 
 		$out = '';
 
-		if ($action == 'view')      $out .= $langs->trans("Individual");
-		if ($action == 'edit')      $out .= $langs->trans("EditCompany");
-		if ($action == 'create')    $out .= $langs->trans("NewCompany");
+		if ($action == 'view') {
+			$out .= $langs->trans("Individual");
+		}
+		if ($action == 'edit') {
+			$out .= $langs->trans("EditCompany");
+		}
+		if ($action == 'create') {
+			$out .= $langs->trans("NewCompany");
+		}
 
 		return $out;
-	}
-
-
-	/**
-	 * Execute actions
-	 * @deprecated Use the doActions of hooks instead of this.
-	 *
-	 * @param	string	$action	Action
-	 * @param	int		$id			Id of object (may be empty for creation)
-	 * @return	int					<0 if KO, >0 if OK
-	 */
-	public function doActions(&$action, $id)
-	{
-		$ret = $this->getObject($id);
-
-		$return = parent::doActions($action);
-
-		return $return;
 	}
 
 	// phpcs:disable PEAR.NamingConventions.ValidFunctionName.ScopeNotCamelCaps
@@ -107,13 +95,11 @@ class ActionsCardIndividual extends ActionsCardCommon
 
 		$this->tpl['title'] = load_fiche_titre($this->getTitle($action));
 
-		if ($action == 'create' || $action == 'edit')
-		{
+		if ($action == 'create' || $action == 'edit') {
 			$this->tpl['select_civility'] = $formcompany->select_civility(GETPOST('civility_id'));
 		} else {
 			// Confirm delete third party
-			if ($action == 'delete' || $conf->use_javascript_ajax)
-			{
+			if ($action == 'delete' || $conf->use_javascript_ajax) {
 				$this->tpl['action_delete'] = $form->formconfirm($_SERVER["PHP_SELF"]."?socid=".$this->object->id, $langs->trans("DeleteAnIndividual"), $langs->trans("ConfirmDeleteIndividual"), "confirm_delete", '', 0, "1,action-delete");
 			}
 		}

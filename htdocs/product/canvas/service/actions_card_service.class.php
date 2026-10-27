@@ -1,5 +1,7 @@
 <?php
 /* Copyright (C) 2010-2018 Regis Houssin  <regis.houssin@inodbox.com>
+ * Copyright (C) 2024-2025  Frédéric France             <frederic.france@free.fr>
+ * Copyright (C) 2024-2026	MDW							<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,33 +26,133 @@ include_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 
 
 /**
- *	Class with controller methods for product canvas
+ *	Class with controller methods for service canvas
  */
 class ActionsCardService
 {
+	/**
+	 * @var DoliDB Database handler.
+	 */
+	public $db;
+
+	/**
+	 * @var string
+	 */
+	public $dirmodule;
+	/**
+	 * @var string
+	 */
+	public $module;
+	/**
+	 * @var string
+	 */
+	public $label;
+	/**
+	 * @var string
+	 */
+	public $price_base_type;
+	/**
+	 * @var string
+	 */
+	public $accountancy_code_sell;
+	/**
+	 * @var string
+	 */
+	public $accountancy_code_buy;
+	/**
+	 * @var string
+	 */
 	public $targetmodule;
+	/**
+	 * @var string
+	 */
 	public $canvas;
+	/**
+	 * @var string
+	 */
 	public $card;
 
-	//! Template container
+	/**
+	 * @var string
+	 */
+	public $name;
+	/**
+	 * @var string
+	 */
+	public $definition;
+	/**
+	 * @var string
+	 */
+	public $fieldListName;
+	/**
+	 * @var string
+	 */
+	public $next_prev_filter;
+
+	/**
+	 * @var Product Object container
+	 */
+	public $object;
+
+	/**
+	 * @var array<string,mixed> Template container
+	 */
 	public $tpl = array();
 
-	// List of fiels for action=list
+	/**
+	 * @var array<int,array<string,bool|string>> List of fields for action=list
+	 */
 	public $field_list = array();
-	public $list_datas = array();
+
+	/**
+	 * @var string
+	 */
+	public $id;
+	/**
+	 * @var string
+	 */
+	public $ref;
+	/**
+	 * @var string
+	 */
+	public $description;
+	/**
+	 * @var string
+	 */
+	public $note;
+	/**
+	 * @var float
+	 */
+	public $price;
+	/**
+	 * @var float
+	 */
+	public $price_min;
+
+	/**
+	 * @var string Error code (or message)
+	 */
+	public $error = '';
+
+	/**
+	 * @var string[] Error codes (or messages)
+	 */
+	public $errors = array();
 
 
 	/**
 	 *    Constructor
 	 *
-	 *    @param   DoliDB	$db             Handler acces base de donnees
-	 *    @param   string	$targetmodule   Name of directory of module where canvas is stored
+	 *    @param	DoliDB	$db             Database handler
+	 *    @param	string	$dirmodule		Name of directory of module
+	 *    @param	string	$targetmodule	Name of directory where canvas is stored
 	 *    @param   string	$canvas         Name of canvas
 	 *    @param   string	$card           Name of tab (sub-canvas)
 	 */
-	public function __construct($db, $targetmodule, $canvas, $card)
+	public function __construct($db, $dirmodule, $targetmodule, $canvas, $card)
 	{
 		$this->db = $db;
+		$this->dirmodule = $dirmodule;
 		$this->targetmodule = $targetmodule;
 		$this->canvas           = $canvas;
 		$this->card             = $card;
@@ -59,7 +161,7 @@ class ActionsCardService
 		$this->name = "service";
 		$this->definition = "Services canvas";
 		$this->fieldListName = "product_service";
-		$this->next_prev_filter = "canvas='service'";
+		$this->next_prev_filter = "canvas:=:'service'";
 	}
 
 
@@ -75,18 +177,16 @@ class ActionsCardService
 	public function assign_values(&$action, $id = 0, $ref = '')
 	{
 		// phpcs:enable
-		global $limit, $offset, $sortfield, $sortorder;
 		global $conf, $langs, $user, $mysoc, $canvas;
-		global $form, $formproduct;
+		global $form;
 
-   		$tmpobject = new Product($this->db);
-   		if (!empty($id) || !empty($ref)) $tmpobject->fetch($id, $ref);
+		$tmpobject = new Product($this->db);
+		if (!empty($id) || !empty($ref)) {
+			$tmpobject->fetch($id, $ref);
+		}
 		$this->object = $tmpobject;
 
-		//parent::assign_values($action);
-
-		foreach ($this->object as $key => $value)
-		{
+		foreach ($this->object as $key => $value) {
 			$this->tpl[$key] = $value;
 		}
 
@@ -113,19 +213,17 @@ class ActionsCardService
 		// Note
 		$this->tpl['note'] = nl2br($this->note);
 
-		if ($action == 'create')
-		{
+		if ($action == 'create') {
 			// Price
 			$this->tpl['price'] = $this->price;
 			$this->tpl['price_min'] = $this->price_min;
 			$this->tpl['price_base_type'] = $form->selectPriceBaseType($this->price_base_type, "price_base_type");
 
 			// VAT
-			$this->tpl['tva_tx'] = $form->load_tva("tva_tx", -1, $mysoc, '');
+			$this->tpl['tva_tx'] = $form->load_tva("tva_tx", -1, $mysoc, null);
 		}
 
-		if ($action == 'view')
-		{
+		if ($action == 'view') {
 			$head = product_prepare_head($this->object);
 
 			$this->tpl['showrefnav'] = $form->showrefnav($this->object, 'ref', '', 1, 'ref');
@@ -149,25 +247,22 @@ class ActionsCardService
 		$this->tpl['label'] = $this->object->label;
 		$this->tpl['id'] = $this->object->id;
 		$this->tpl['type'] = $this->object->type;
-		$this->tpl['note'] = $this->object->note;
+		$this->tpl['note'] = $this->object->note_private;
 		$this->tpl['seuil_stock_alerte'] = $this->object->seuil_stock_alerte;
 
 		// Duration
 		$this->tpl['duration_value'] = $this->object->duration_value;
 
-		if ($action == 'create')
-		{
+		if ($action == 'create') {
 			// Title
 			$this->tpl['title'] = $langs->trans("NewService");
 		}
 
-		if ($action == 'edit')
-		{
+		if ($action == 'edit') {
 			$this->tpl['title'] = $langs->trans('Modify').' '.$langs->trans('Service').' : '.$this->object->ref;
 		}
 
-		if ($action == 'create' || $action == 'edit')
-		{
+		if ($action == 'create' || $action == 'edit') {
 			// Status
 			$statutarray = array('1' => $langs->trans("OnSell"), '0' => $langs->trans("NotOnSell"));
 			$this->tpl['status'] = $form->selectarray('statut', $statutarray, $this->object->status);
@@ -192,31 +287,23 @@ class ActionsCardService
 			$this->tpl['duration_unit'] = $duration_unit;
 		}
 
-		if ($action == 'view')
-		{
+		if ($action == 'view') {
 			// Photo
 			$this->tpl['nblines'] = 4;
-			if ($this->object->is_photo_available($conf->service->multidir_output[$this->object->entity]))
-			{
-				$this->tpl['photos'] = $this->object->show_photos('product', $conf->service->multidir_output[$this->object->entity], 1, 1, 0, 0, 0, 80);
+			if ($this->object->is_photo_available($conf->service->multidir_output[(int) $this->object->entity])) {
+				$this->tpl['photos'] = $this->object->show_photos('product', $conf->service->multidir_output[(int) $this->object->entity], 1, 1, 0, 0, 0, 80);
 			}
 
 			// Duration
-			if ($this->object->duration_value > 1)
-			{
-				$dur = array("h"=>$langs->trans("Hours"), "d"=>$langs->trans("Days"), "w"=>$langs->trans("Weeks"), "m"=>$langs->trans("Months"), "y"=>$langs->trans("Years"));
-			} elseif ($this->object->duration_value > 0)
-			{
-				$dur = array("h"=>$langs->trans("Hour"), "d"=>$langs->trans("Day"), "w"=>$langs->trans("Week"), "m"=>$langs->trans("Month"), "y"=>$langs->trans("Year"));
+			$dur = array();
+			if ($this->object->duration_value > 1) {
+				$dur = array("h" => $langs->trans("Hours"), "d" => $langs->trans("Days"), "w" => $langs->trans("Weeks"), "m" => $langs->trans("Months"), "y" => $langs->trans("Years"));
+			} elseif ($this->object->duration_value > 0) {
+				$dur = array("h" => $langs->trans("Hour"), "d" => $langs->trans("Day"), "w" => $langs->trans("Week"), "m" => $langs->trans("Month"), "y" => $langs->trans("Year"));
 			}
 			$this->tpl['duration_unit'] = $langs->trans($dur[$this->object->duration_unit]);
 
 			$this->tpl['fiche_end'] = dol_get_fiche_end();
-		}
-
-		if ($action == 'list')
-		{
-			$this->LoadListDatas($limit, $offset, $sortfield, $sortorder);
 		}
 	}
 
@@ -226,7 +313,7 @@ class ActionsCardService
 	 *
 	 *  @return	void
 	 */
-	private function getFieldList()
+	private function getFieldListCanvas() // @phpstan-ignore-line
 	{
 		global $conf, $langs;
 
@@ -235,17 +322,15 @@ class ActionsCardService
 		$sql = "SELECT rowid, name, alias, title, align, sort, search, visible, enabled, rang";
 		$sql .= " FROM ".MAIN_DB_PREFIX."c_field_list";
 		$sql .= " WHERE element = '".$this->db->escape($this->fieldListName)."'";
-		$sql .= " AND entity = ".$conf->entity;
+		$sql .= " AND entity = ".((int) $conf->entity);
 		$sql .= " ORDER BY rang ASC";
 
 		$resql = $this->db->query($sql);
-		if ($resql)
-		{
+		if ($resql) {
 			$num = $this->db->num_rows($resql);
 
 			$i = 0;
-			while ($i < $num)
-			{
+			while ($i < $num) {
 				$fieldlist = array();
 
 				$obj = $this->db->fetch_object($resql);
@@ -268,97 +353,6 @@ class ActionsCardService
 			$this->db->free($resql);
 		} else {
 			dol_print_error($this->db, $sql);
-		}
-	}
-
-	// phpcs:disable PEAR.NamingConventions.ValidFunctionName.ScopeNotCamelCaps
-	/**
-	 * 	Fetch datas list and save into ->list_datas
-	 *
-	 *  @param	int		$limit		Limit number of responses
-	 *  @param	int		$offset		Offset for first response
-	 *  @param	string	$sortfield	Sort field
-	 *  @param	string	$sortorder	Sort order ('ASC' or 'DESC')
-	 *  @return	void
-	 */
-	public function LoadListDatas($limit, $offset, $sortfield, $sortorder)
-	{
-		// phpcs:enable
-		global $conf;
-		global $search_categ, $sall, $sref, $search_barcode, $snom, $catid;
-
-		$this->getFieldList();
-
-		$sql = 'SELECT DISTINCT p.rowid, p.ref, p.label, p.barcode, p.price, p.price_ttc, p.price_base_type,';
-		$sql .= ' p.fk_product_type, p.tms as datem,';
-		$sql .= ' p.duration, p.tosell as statut, p.seuil_stock_alerte';
-		$sql .= ' FROM '.MAIN_DB_PREFIX.'product as p';
-		// We'll need this table joined to the select in order to filter by categ
-		if ($search_categ) $sql .= ", ".MAIN_DB_PREFIX."categorie_product as cp";
-		if (GETPOST("fourn_id", 'int') > 0)
-		{
-			$fourn_id = GETPOST("fourn_id", 'int');
-			$sql .= ", ".MAIN_DB_PREFIX."product_fournisseur_price as pfp";
-		}
-		$sql .= " WHERE p.entity IN (".getEntity('product').")";
-		if ($search_categ) $sql .= " AND p.rowid = cp.fk_product"; // Join for the needed table to filter by categ
-		if ($sall)
-		{
-			$sql .= " AND (p.ref LIKE '%".$this->db->escape($sall)."%' OR p.label LIKE '%".$this->db->escape($sall)."%' OR p.description LIKE '%".$this->db->escape($sall)."%' OR p.note LIKE '%".$this->db->escape($sall)."%')";
-		}
-		if ($sref)     $sql .= " AND p.ref LIKE '%".$sref."%'";
-		if ($search_barcode) $sql .= " AND p.barcode LIKE '%".$search_barcode."%'";
-		if ($snom)     $sql .= " AND p.label LIKE '%".$this->db->escape($snom)."%'";
-		if (isset($_GET["tosell"]) && dol_strlen($_GET["tosell"]) > 0)
-		{
-			$sql .= " AND p.tosell = ".$this->db->escape($_GET["tosell"]);
-		}
-		if (isset($_GET["canvas"]) && dol_strlen($_GET["canvas"]) > 0)
-		{
-			$sql .= " AND p.canvas = '".$this->db->escape($_GET["canvas"])."'";
-		}
-		if ($catid)
-		{
-			$sql .= " AND cp.fk_categorie = ".$catid;
-		}
-		if ($fourn_id > 0)
-		{
-			$sql .= " AND p.rowid = pfp.fk_product AND pfp.fk_soc = ".$fourn_id;
-		}
-		// Insert categ filter
-		if ($search_categ)
-		{
-			$sql .= " AND cp.fk_categorie = ".$this->db->escape($search_categ);
-		}
-		$sql .= $this->db->order($sortfield, $sortorder);
-		$sql .= $this->db->plimit($limit + 1, $offset);
-
-		$this->list_datas = array();
-
-		$resql = $this->db->query($sql);
-		if ($resql)
-		{
-			$num = $this->db->num_rows($resql);
-
-			$i = 0;
-			while ($i < min($num, $limit))
-			{
-				$datas = array();
-				$obj = $this->db->fetch_object($resql);
-
-				$datas["id"]        = $obj->rowid;
-				$datas["ref"]       = $obj->ref;
-				$datas["label"]     = $obj->label;
-				$datas["barcode"]   = $obj->barcode;
-				$datas["statut"]    = $obj->statut;
-
-				array_push($this->list_datas, $datas);
-
-				$i++;
-			}
-			$this->db->free($resql);
-		} else {
-			print $sql;
 		}
 	}
 }

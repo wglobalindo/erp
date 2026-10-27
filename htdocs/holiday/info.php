@@ -1,6 +1,8 @@
 <?php
-/* Copyright (C) 2004      Rodolphe Quiedeville <rodolphe@quiedeville.org>
- * Copyright (C) 2004-2015 Laurent Destailleur  <eldy@users.sourceforge.net>
+/* Copyright (C) 2004		Rodolphe Quiedeville		<rodolphe@quiedeville.org>
+ * Copyright (C) 2004-2015	Laurent Destailleur			<eldy@users.sourceforge.net>
+ * Copyright (C) 2024		Alexandre Spangaro			<alexandre@inovea-conseil.com>
+ * Copyright (C) 2024-2026  Frédéric France         <frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,10 +22,19 @@
 /**
  * 	\file       htdocs/holiday/info.php
  * 	\ingroup    holiday
- * 	\brief      Page to show a leave information
+ * 	\brief      Page to show leave information
  */
 
+// Load Dolibarr environment
 require '../main.inc.php';
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var ExtraFields $extrafields
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
 require_once DOL_DOCUMENT_ROOT.'/core/lib/holiday.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/holiday/class/holiday.class.php';
@@ -31,32 +42,48 @@ require_once DOL_DOCUMENT_ROOT.'/holiday/class/holiday.class.php';
 // Load translation files required by the page
 $langs->load("holiday");
 
-$id = GETPOST('id', 'int');
+$id = GETPOSTINT('id');
 $ref = GETPOST('ref', 'alpha');
+
 
 $childids = $user->getAllChildIds(1);
 
-// Security check
-if ($user->socid) $socid = $user->socid;
-$result = restrictedArea($user, 'holiday', $id, 'holiday');
-
-$object = new Holiday($db);
-if (!$object->fetch($id, $ref) > 0)
-{
-	dol_print_error($db);
+$morefilter = '';
+if (getDolGlobalString('HOLIDAY_HIDE_FOR_NON_SALARIES')) {
+	$morefilter = 'AND employee = 1';
 }
 
-if ($object->id > 0)
-{
-	// Check current user can read this expense report
+$object = new Holiday($db);
+
+// fetch optionals attributes and labels
+$extrafields->fetch_name_optionals_label($object->table_element);
+
+$permissiontoapprove = $user->hasRight('holiday', 'approve');
+
+if (($id > 0) || $ref) {
+	$object->fetch($id, $ref);
+
+	// Check current user can read this leave request
 	$canread = 0;
-	if (!empty($user->rights->holiday->readall)) $canread = 1;
-	if (!empty($user->rights->holiday->lire) && in_array($object->fk_user_author, $childids)) $canread = 1;
-	if (!$canread)
-	{
+	if ($user->hasRight('holiday', 'readall')) {
+		$canread = 1;
+	}
+	if ($user->hasRight('holiday', 'read') && in_array($object->fk_user, $childids)) {
+		$canread = 1;
+	}
+	if ($permissiontoapprove && $object->fk_validator == $user->id && !getDolGlobalString('HOLIDAY_CAN_APPROVE_ONLY_THE_SUBORDINATES')) {	// TODO HOLIDAY_CAN_APPROVE_ONLY_THE_SUBORDINATES not completely implemented
+		$canread = 1;
+	}
+	if (!$canread) {
 		accessforbidden();
 	}
 }
+
+// Security check
+if ($user->socid) {
+	$socid = $user->socid;
+}
+$result = restrictedArea($user, 'holiday', $object->id, 'holiday');
 
 
 /*
@@ -65,12 +92,12 @@ if ($object->id > 0)
 
 $form = new Form($db);
 
-$title = $langs->trans("Holiday")." - ".$langs->trans("Info");
-$helpurl = "";
-llxHeader("", $title, $helpurl);
+$title = $langs->trans("Leave")." - ".$langs->trans("Info");
+$help_url = 'EN:Module_Holiday';
 
-if ($id > 0 || !empty($ref))
-{
+llxHeader("", $title, $help_url, '', 0, 0, '', '', '', 'mod-holiday page-card_info');
+
+if ($id > 0 || !empty($ref)) {
 	$object = new Holiday($db);
 	$object->fetch($id, $ref);
 	$object->info($object->id);

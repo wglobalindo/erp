@@ -4,6 +4,8 @@
  * Copyright (C) 2004      Sebastien Di Cintio  <sdicintio@ressource-toi.org>
  * Copyright (C) 2004      Benoit Mortier       <benoit.mortier@opensides.be>
  * Copyright (C) 2005-2012 Regis Houssin        <regis.houssin@inodbox.com>
+ * Copyright (C) 2026      Frédéric France      <frederic.france@free.fr>
+ * Copyright (C) 2026	   Charlene Benke		<charlene@patas-monkey.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +27,7 @@
  *	\brief      Module to manage intervention cards
  *	\file       htdocs/core/modules/modFicheinter.class.php
  *	\ingroup    ficheinter
- *	\brief      Fichier de description et activation du module Ficheinter
+ *	\brief      Description and activation file for the module Ficheinter
  */
 
 include_once DOL_DOCUMENT_ROOT.'/core/modules/DolibarrModules.class.php';
@@ -36,7 +38,6 @@ include_once DOL_DOCUMENT_ROOT.'/core/modules/DolibarrModules.class.php';
  */
 class modFicheinter extends DolibarrModules
 {
-
 	/**
 	 *   Constructor. Define names, constants, directories, boxes, permissions
 	 *
@@ -44,7 +45,7 @@ class modFicheinter extends DolibarrModules
 	 */
 	public function __construct($db)
 	{
-		global $conf;
+		global $conf, $user;
 
 		$this->db = $db;
 		$this->numero = 70;
@@ -73,19 +74,35 @@ class modFicheinter extends DolibarrModules
 		// Config pages
 		$this->config_page_url = array("fichinter.php");
 
+		if (!isset($conf->ficheinter) || !isset($conf->ficheinter->enabled)) {
+			$conf->ficheinter = new stdClass();
+			$conf->ficheinter->enabled = 0;
+		}
+
 		// Constants
-		$this->const = array();
-		$r = 0;
-
-		$this->const[$r][0] = "FICHEINTER_ADDON_PDF";
-		$this->const[$r][1] = "chaine";
-		$this->const[$r][2] = "soleil";
-		$r++;
-
-		$this->const[$r][0] = "FICHEINTER_ADDON";
-		$this->const[$r][1] = "chaine";
-		$this->const[$r][2] = "pacific";
-		$r++;
+		// 0:name
+		// 1:type
+		// 2:val
+		// 3:note
+		// 4:visible
+		// 5:entity
+		// 6:deleteonunactive
+		$this->const = [
+			[
+				"FICHEINTER_ADDON_PDF",
+				"chaine",
+				"soleil",
+				"",
+				0,
+			],
+			[
+				"FICHEINTER_ADDON",
+				"chaine",
+				"pacific",
+				"",
+				0,
+			],
+		];
 
 		// Boxes
 		$this->boxes = array(0=>array('file'=>'box_ficheinter.php', 'enabledbydefaulton'=>'Home'));
@@ -165,25 +182,20 @@ class modFicheinter extends DolibarrModules
 			's.siren'=>'ProfId1', 's.siret'=>'ProfId2', 's.ape'=>'ProfId3', 's.idprof4'=>'ProfId4', 's.code_compta'=>'CustomerAccountancyCode',
 			's.code_compta_fournisseur'=>'SupplierAccountancyCode', 'f.rowid'=>"InterId", 'f.ref'=>"InterRef", 'f.datec'=>"InterDateCreation",
 			'f.duree'=>"InterDuration", 'f.fk_statut'=>'InterStatus', 'f.description'=>"InterNote");
-		$keyforselect = 'fichinter'; $keyforelement = 'intervention'; $keyforaliasextra = 'extra';
+		$keyforselect = 'fichinter';
+		$keyforelement = 'intervention';
+		$keyforaliasextra = 'extra';
 		include DOL_DOCUMENT_ROOT.'/core/extrafieldsinexport.inc.php';
 		$this->export_fields_array[$r] += array(
 			'pj.ref'=>'ProjectRef', 'pj.title'=>'ProjectLabel',
 			'fd.rowid'=>'InterLineId',
 			'fd.date'=>"InterLineDate", 'fd.duree'=>"InterLineDuration", 'fd.description'=>"InterLineDesc"
 		);
-		//$this->export_TypeFields_array[$r]=array(
-		//	's.rowid'=>"List:societe:nom",'s.nom'=>'Text','s.address'=>'Text','s.zip'=>'Text','s.town'=>'Text','s.fk_pays'=>'List:c_country:label',
-		//	's.phone'=>'Text','s.siren'=>'Text','s.siret'=>'Text','s.ape'=>'Text','s.idprof4'=>'Text','s.code_compta'=>'Text',
-		//	's.code_compta_fournisseur'=>'Text','f.ref'=>"Text",'f.datec'=>"Date",'f.duree'=>"Duree",'f.fk_statut'=>'Statut','f.description'=>"Text",
-		//	'f.datee'=>"Date",'f.dateo'=>"Date",'f.fulldayevent'=>"Boolean",'fd.date'=>"Date",'fd.duree'=>"Duree",'fd.description'=>"Text",
-		//	'fd.total_ht'=>"Numeric"
-		//);
 		$this->export_TypeFields_array[$r] = array(
 			's.rowid'=>"Numeric", 's.nom'=>'Text', 's.address'=>'Text', 's.zip'=>'Text', 's.town'=>'Text', 's.fk_pays'=>'List:c_country:label', 's.phone'=>'Text', 's.siren'=>'Text',
 			's.siret'=>'Text', 's.ape'=>'Text', 's.idprof4'=>'Text', 's.code_compta'=>'Text', 's.code_compta_fournisseur'=>'Text',
 			'f.rowid'=>'Numeric', 'f.ref'=>"Text", 'f.datec'=>"Date",
-			'f.duree'=>"Duree", 'f.fk_statut'=>'Numeric', 'f.description'=>"Text", 'f.datee'=>"Date", 'f.dateo'=>"Date", 'f.fulldayevent'=>"Boolean",
+			'f.duree'=>"Duree", 'f.fk_statut'=>'Numeric', 'f.description'=>"Text", 'f.datee'=>"Date", 'f.dateo'=>"Date", 'f.fulldayevent'=>"Text",
 			'pj.ref'=>'Text', 'pj.title'=>'Text',
 			'fd.rowid'=>"Numeric", 'fd.date'=>"Date", 'fd.duree'=>"Duree", 'fd.description'=>"Text", 'fd.total_ht'=>"Numeric"
 		);
@@ -195,7 +207,9 @@ class modFicheinter extends DolibarrModules
 			'fd.duree'=>'inter_line', 'fd.description'=>'inter_line'
 		);
 		$this->export_dependencies_array[$r] = array('inter_line'=>'fd.rowid'); // To add unique key if we ask a field of a child to avoid the DISTINCT to discard them
-		$keyforselect = 'fichinterdet'; $keyforelement = 'inter_line'; $keyforaliasextra = 'extradet';
+		$keyforselect = 'fichinterdet';
+		$keyforelement = 'inter_line';
+		$keyforaliasextra = 'extradet';
 		include DOL_DOCUMENT_ROOT.'/core/extrafieldsinexport.inc.php';
 
 		$this->export_sql_start[$r] = 'SELECT DISTINCT ';
@@ -205,8 +219,14 @@ class modFicheinter extends DolibarrModules
 		$this->export_sql_end[$r] .= ' LEFT JOIN '.MAIN_DB_PREFIX.'fichinterdet as fd ON f.rowid = fd.fk_fichinter';
 		$this->export_sql_end[$r] .= ' LEFT JOIN '.MAIN_DB_PREFIX.'fichinterdet_extrafields as extradet ON fd.rowid = extradet.fk_object,';
 		$this->export_sql_end[$r] .= ' '.MAIN_DB_PREFIX.'societe as s';
+		if (is_object($user) && !$user->hasRight('societe', 'client', 'voir')) {
+			$this->export_sql_end[$r] .= ' LEFT JOIN '.MAIN_DB_PREFIX.'societe_commerciaux as sc ON sc.fk_soc = s.rowid';
+		}
 		$this->export_sql_end[$r] .= ' WHERE f.fk_soc = s.rowid';
 		$this->export_sql_end[$r] .= ' AND f.entity IN ('.getEntity('intervention').')';
+		if (is_object($user) && !$user->hasRight('societe', 'client', 'voir')) {
+			$this->export_sql_end[$r] .= ' AND (f.fk_soc IS NULL OR sc.fk_user = '.((int) $user->id).')';
+		}
 		$r++;
 	}
 
@@ -223,12 +243,17 @@ class modFicheinter extends DolibarrModules
 	{
 		global $conf;
 
+		$result = $this->_load_tables('/install/mysql/', 'fichinter');
+		if ($result < 0) {
+			return -1; // Do not activate module if error 'not allowed' returned when loading module SQL queries (the _load_table run sql with run_sql with the error allowed parameter set to 'default')
+		}
+
 		// Permissions
 		$this->remove($options);
 
 		$sql = array(
-			 "DELETE FROM ".MAIN_DB_PREFIX."document_model WHERE nom = '".$this->db->escape($this->const[0][2])."' AND type = 'ficheinter' AND entity = ".$conf->entity,
-			 "INSERT INTO ".MAIN_DB_PREFIX."document_model (nom, type, entity) VALUES('".$this->db->escape($this->const[0][2])."','ficheinter',".$conf->entity.")",
+			"DELETE FROM ".MAIN_DB_PREFIX."document_model WHERE nom = '".$this->db->escape($this->const[0][2])."' AND type = 'ficheinter' AND entity = ".((int) $conf->entity),
+			"INSERT INTO ".MAIN_DB_PREFIX."document_model (nom, type, entity) VALUES('".$this->db->escape($this->const[0][2])."','ficheinter',".((int) $conf->entity).")",
 		);
 
 		return $this->_init($sql, $options);

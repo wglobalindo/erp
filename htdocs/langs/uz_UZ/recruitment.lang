@@ -4,73 +4,68 @@
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#
 # Generic
-#
-
 # Module label 'ModuleRecruitmentName'
-ModuleRecruitmentName = Recruitment
+ModuleRecruitmentName = Ishga qabul qilish
 # Module description 'ModuleRecruitmentDesc'
-ModuleRecruitmentDesc = Manage and follow recruitment campaigns for new job positions
-
-#
+ModuleRecruitmentDesc = Yangi ish joylariga ishga qabul qilish kampaniyalarini boshqaring va kuzatib boring
 # Admin page
-#
-RecruitmentSetup = Recruitment setup
-Settings = Settings
-RecruitmentSetupPage = Enter here the setup of main options for the recruitment module
-RecruitmentArea=Recruitement area
-PublicInterfaceRecruitmentDesc=Public pages of jobs are public URLs to show and answer to open jobs. There is one different link for each open job, found on each job record.
-EnablePublicRecruitmentPages=Enable public pages of open jobs
+RecruitmentSetup = Ishga qabul qilishni sozlash
+RecruitmentSetupPage = Ishga qabul qilish moduli uchun asosiy variantlarni sozlashni kiriting
+RecruitmentArea=Ishga qabul qilish maydoni
+PublicInterfaceRecruitmentDesc=Ishlarning ochiq sahifalari - bu ochiq ish joylarini ko'rsatish va ularga javob berish uchun ochiq URL manzillar. Har bir ochiq ish uchun har bir ish yozuvida bir xil havola mavjud.
+EnablePublicRecruitmentPages=Ochiq ish joylarining ommaviy sahifalarini yoqing
 
-#
-# About page
-#
-About = About
-RecruitmentAbout = About Recruitment
-RecruitmentAboutPage = Recruitment about page
-NbOfEmployeesExpected=Expected nb of employees
-JobLabel=Label of job position
-WorkPlace=Work place
-DateExpected=Expected date
-FutureManager=Future manager
-ResponsibleOfRecruitement=Responsible of recruitment
-IfJobIsLocatedAtAPartner=If job is located at a partner place
-PositionToBeFilled=Job position
-PositionsToBeFilled=Job positions
-ListOfPositionsToBeFilled=List of job positions
-NewPositionToBeFilled=New job positions
-
-JobOfferToBeFilled=Job position to be filled
-ThisIsInformationOnJobPosition=Information of the job position to be filled
-ContactForRecruitment=Contact for recruitment
-EmailRecruiter=Email recruiter
-ToUseAGenericEmail=To use a generic email. If not defined, the email of the responsible of recruitment will be used
-NewCandidature=New application
-ListOfCandidatures=List of applications
-RequestedRemuneration=Requested remuneration
-ProposedRemuneration=Proposed remuneration
-ContractProposed=Contract proposed
-ContractSigned=Contract signed
-ContractRefused=Contract refused
-RecruitmentCandidature=Application
-JobPositions=Job positions
-RecruitmentCandidatures=Applications
-InterviewToDo=Interview to do
-AnswerCandidature=Application answer
-YourCandidature=Your application
-YourCandidatureAnswerMessage=Thanks you for your application.<br>...
-JobClosedTextCandidateFound=The job position is closed. The position has been filled.
-JobClosedTextCanceled=The job position is closed.
-ExtrafieldsJobPosition=Complementary attributes (job positions)
-ExtrafieldsCandidatures=Complementary attributes (job applications)
-MakeOffer=Make an offer
+NbOfEmployeesExpected=Kutilayotgan ishchilar soni
+JobLabel=Ish joyining yorlig'i
+WorkPlace=Ish joyi
+DateExpected=Kutilayotgan sana
+FutureManager=Kelajak menejeri
+ResponsibleOfRecruitement=Ishga qabul qilish uchun mas'uldir
+IfJobIsLocatedAtAPartner=Agar ish sherik joyda joylashgan bo'lsa
+PositionToBeFilled=Ish joyi
+PositionsToBeFilled=Ish joylari
+ListOfPositionsToBeFilled=Ish joylari ro'yxati
+NewPositionToBeFilled=Yangi ish joylari
+JobOfferToBeFilled=To'ldirilishi kerak bo'lgan ish joyi
+ThisIsInformationOnJobPosition=To'ldirilishi kerak bo'lgan lavozim to'g'risida ma'lumot
+ContactForRecruitment=Ishga qabul qilish uchun murojaat qiling
+EmailRecruiter=Elektron pochta orqali yollovchi
+ToUseAGenericEmail=Umumiy elektron pochtadan foydalanish uchun. Agar aniqlanmagan bo'lsa, ishga qabul qilish uchun mas'ul bo'lgan elektron pochtadan foydalaniladi
+NewCandidature=Yangi dastur
+ListOfCandidatures=Arizalar ro'yxati
+Remuneration=Ish haqi
+RequestedRemuneration=Talab qilingan ish haqi
+ProposedRemuneration=Taklif etilgan ish haqi
+ContractProposed=Shartnoma taklif qilingan
+ContractSigned=Shartnoma imzolandi
+ContractRefused=Shartnoma rad etildi
+RecruitmentCandidature=Ilova
+JobPositions=Ish joylari
+RecruitmentCandidatures=Ilovalar
+InterviewToDo=Kuzatiladigan kontaktlar
+AnswerCandidature=Ariza javobi
+YourCandidature=Sizning arizangiz
+YourCandidatureAnswerMessage=Arizangiz uchun tashakkur. <br> ...
+JobClosedTextCandidateFound=Ish joyi yopiq. Lavozim to'ldirildi.
+JobClosedTextCanceled=Ish joyi yopiq.
+ExtrafieldsJobPosition=Qo'shimcha xususiyatlar (ish joylari)
+ExtrafieldsApplication=Qo'shimcha atributlar (ish uchun arizalar)
+MakeOffer=Taklif qiling
+WeAreRecruiting=Biz ishga qabul qilamiz. Bu to'ldirilishi kerak bo'lgan ochiq lavozimlar ro'yxati...
+NoPositionOpen=Ayni paytda hech qanday lavozim ochilmagan
+ConfirmClose=Bekor qilishni tasdiqlang
+ConfirmCloseAsk=Haqiqatan ham bu ishga yollash nomzodini bekor qilmoqchimisiz
+Recruitment=Ishga qabul qilish
+ApplyJobCandidature=Ushbu ish uchun ariza bering
+ErrorRecruitmmentCandidatureAlreadyExists= Ishga qabul qilish uchun nomzod %s elektron pochta manzilida allaqachon mavjud.
+RecruitmentCandidatureSaved=Ishga qabul qilish uchun nomzod muvaffaqiyatli saqlandi
+NoOpenJobOffer=Hozircha ochiq ish takliflari yo'q
+ShowPositionToBeFilled=Show Position to be filled

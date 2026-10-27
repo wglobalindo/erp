@@ -6,4 +6,5 @@ StatusPaid=Verarbeitet
 StatusMotif4=Kundenbestellungen
 OrderWaiting=Wartend
 NumeroNationalEmetter=Nat. Überweisernummer
-ICS=Creditor Identifier CI for direct debit
+CreditDate=Am
+RefSalary=Lohn

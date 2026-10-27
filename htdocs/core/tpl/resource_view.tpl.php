@@ -1,11 +1,45 @@
 <!-- BEGIN TEMPLATE resource_view.tpl.php -->
 <?php
+/* Copyright (C) 2024		MDW	                    <mdeweerd@users.noreply.github.com>
+ * Copyright (C) 2024       Frédéric France         <frederic.france@free.fr>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var Translate $langs
+ *
+ * @var string $element
+ * @var int $element_id
+ * @var string $mode
+ * @var string $resource_type
+ * @var array<array{rowid:int,resource_id:int,resource_type:string,busy:int<0,1>,mandatory:int<0,1>}> $linked_resources
+ */
 // Protection to avoid direct call of template
-if (empty($conf) || !is_object($conf))
-{
+if (empty($conf) || !is_object($conf)) {
 	print "Error, template page can't be called as URL";
-	exit;
+	exit(1);
 }
+
+'
+@phan-var-force string $element
+@phan-var-force int $element_id
+@phan-var-force string $resource_type
+@phan-var-force array<array{rowid:int,resource_id:int,resource_type:string,busy:int<0,1>,mandatory:int<0,1>}> $linked_resources
+';
 
 
 $form = new Form($db);
@@ -28,16 +62,13 @@ print '<input type="hidden" name="id" value="'.$element_id.'" />';
 print '<input type="hidden" name="action" value="update_linked_resource" />';
 print '<input type="hidden" name="resource_type" value="'.$resource_type.'" />';
 
-if ((array) $linked_resources && count($linked_resources) > 0)
-{
-	foreach ($linked_resources as $linked_resource)
-	{
+if ((array) $linked_resources && count($linked_resources) > 0) {
+	foreach ($linked_resources as $linked_resource) {
 		$object_resource = fetchObjectByElement($linked_resource['resource_id'], $linked_resource['resource_type']);
 
 		//$element_id = $linked_resource['rowid'];
 
-		if ($mode == 'edit' && $linked_resource['rowid'] == GETPOST('lineid'))
-		{
+		if ($mode == 'edit' && $linked_resource['rowid'] == GETPOSTINT('lineid')) {
 			print '<div class="tagtr oddeven">';
 			print '<input type="hidden" name="lineid" value="'.$linked_resource['rowid'].'" />';
 			print '<input type="hidden" name="element" value="'.$element.'" />';
@@ -51,8 +82,9 @@ if ((array) $linked_resources && count($linked_resources) > 0)
 			print '</div>';
 		} else {
 			$class = '';
-			if ($linked_resource['rowid'] == GETPOST('lineid'))
+			if ($linked_resource['rowid'] == GETPOSTINT('lineid')) {
 				$class = 'highlight';
+			}
 
 			print '<div class="tagtr oddeven'.($class ? ' '.$class : '').'">';
 

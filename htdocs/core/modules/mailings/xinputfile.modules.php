@@ -1,5 +1,7 @@
 <?php
 /* Copyright (C) 2005-2012 Laurent Destailleur <eldy@users.sourceforge.net>
+ * Copyright (C) 2024		MDW							<mdeweerd@users.noreply.github.com>
+ * Copyright (C) 2025-2026  Frédéric France         <frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,8 +34,16 @@ class mailing_xinputfile extends MailingTargets
 {
 	public $name = 'EmailsFromFile'; // Identifiant du module mailing
 	// This label is used if no translation is found for key XXX neither MailingModuleDescXXX where XXX=name is found
-	public $desc = 'EMails from a file'; // Libelle utilise si aucune traduction pour MailingModuleDescXXX ou XXX=name trouv�e
+	public $desc = 'EMails from a file'; // Label used if no translation found for MailingModuleDescXXX or XXX=name
+
+	/**
+	 * @var string[] This module allows to select by categories must be also enabled if category module is not activated
+	 */
 	public $require_module = array(); // Module mailing actif si modules require_module actifs
+
+	/**
+	 * @var int<0,1>
+	 */
 	public $require_admin = 0; // Module mailing actif pour user admin ou non
 
 	/**
@@ -60,7 +70,7 @@ class mailing_xinputfile extends MailingTargets
 	 *	array of SQL request that returns two field:
 	 *	One called "label", One called "nb".
 	 *
-	 *	@return		array		Array with SQL requests
+	 *	@return		string[]		Array with SQL requests
 	 */
 	public function getSqlArrayForStats()
 	{
@@ -77,8 +87,8 @@ class mailing_xinputfile extends MailingTargets
 	 *	For example if this selector is used to extract 500 different
 	 *	emails from a text file, this function must return 500.
 	 *
-	 *  @param      string	$sql        Sql request to count
-	 *	@return		string				'' means NA
+	 *  @param      string			$sql        Sql request to count
+	 *  @return     int|string      			Nb of recipient, or <0 if error, or '' if NA
 	 */
 	public function getNbOfRecipients($sql = '')
 	{
@@ -87,10 +97,10 @@ class mailing_xinputfile extends MailingTargets
 
 
 	/**
-	 *  Renvoie url lien vers fiche de la source du destinataire du mailing
+	 *  Provide the URL to the car of the source information of the recipient for the mailing
 	 *
 	 *  @param	int		$id		ID
-	 *  @return string      	Url lien
+	 *  @return string      	URL link
 	 */
 	public function url($id)
 	{
@@ -101,15 +111,20 @@ class mailing_xinputfile extends MailingTargets
 
 
 	/**
-	 *   Affiche formulaire de filtre qui apparait dans page de selection des destinataires de mailings
+	 *   Display filter form shown on the mailing recipient selection page
 	 *
-	 *   @return     string      Retourne zone select
+	 *   @return     string      HTML select zone
 	 */
 	public function formFilter()
 	{
 		global $langs;
 
 		$s = '';
+		$maxfilesizearray = getMaxFileSizeArray();
+		$maxmin = $maxfilesizearray['maxmin'];
+		if ($maxmin > 0) {
+			$s .= '<input type="hidden" name="MAX_FILE_SIZE" value="'.($maxmin * 1024).'">';	// MAX_FILE_SIZE must precede the field type=file
+		}
 		$s .= '<input type="file" name="username" class="flat">';
 		return $s;
 	}
@@ -119,7 +134,7 @@ class mailing_xinputfile extends MailingTargets
 	 *  Ajoute destinataires dans table des cibles
 	 *
 	 *  @param	int		$mailing_id    	Id of emailing
-	 *  @return int           			< 0 si erreur, nb ajout si ok
+	 *  @return int           			Return integer < 0 si erreur, nb ajout si ok
 	 */
 	public function add_to_target($mailing_id)
 	{
@@ -135,44 +150,39 @@ class mailing_xinputfile extends MailingTargets
 
 		$upload_dir = $conf->mailing->dir_temp;
 
-		if (dol_mkdir($upload_dir) >= 0)
-		{
+		if (dol_mkdir($upload_dir) >= 0) {
 			$resupload = dol_move_uploaded_file($_FILES['username']['tmp_name'], $upload_dir."/".$_FILES['username']['name'], 1, 0, $_FILES['username']['error']);
-			if (is_numeric($resupload) && $resupload > 0)
-			{
+			if (is_numeric($resupload) && $resupload > 0) {
 				$cpt = 0;
 
 				$file = $upload_dir."/".$_FILES['username']['name'];
 				$handle = @fopen($file, "r");
-				if ($handle)
-				{
+				if ($handle) {
 					$i = 0;
 					$j = 0;
 
 					$old = '';
-					while (!feof($handle))
-					{
+					while (!feof($handle)) {
 						$cpt++;
 						$buffer = trim(fgets($handle));
 						$tab = explode(';', $buffer, 4);
-						$email = $tab[0];
-						$name = $tab[1];
-						$firstname = $tab[2];
-						$other = $tab[3];
-						if (!empty($buffer))
-						{
+
+						$email = dol_string_nohtmltag($tab[0]);
+						$name = dol_string_nohtmltag(empty($tab[1]) ? '' : $tab[1]);
+						$firstname = dol_string_nohtmltag(empty($tab[2]) ? '' : $tab[2]);
+						$other = dol_string_nohtmltag(empty($tab[3]) ? '' : $tab[3]);
+
+						if (!empty($buffer)) {
 							//print 'xx'.dol_strlen($buffer).empty($buffer)."<br>\n";
-							if (isValidEMail($email))
-							{
-		   						if ($old <> $email)
-								{
+							if (isValidEmail($email)) {
+								if ($old != $email) {
 									$cibles[$j] = array(
 													'email' => $email,
 													'lastname' => $name,
 													'firstname' => $firstname,
 													'other' => $other,
 													'source_url' => '',
-													'source_id' => '',
+													'source_id' => 0,
 													'source_type' => 'file'
 									);
 									$old = $email;
@@ -182,15 +192,17 @@ class mailing_xinputfile extends MailingTargets
 								$i++;
 								$langs->load("errors");
 								$msg = $langs->trans("ErrorFoundBadEmailInFile", $i, $cpt, $email);
-								if (!empty($msg)) $this->error = $msg;
-								else $this->error = 'ErrorFoundBadEmailInFile '.$i.' '.$cpt.' '.$email; // We experience case where $langs->trans return an empty string.
+								if (!empty($msg)) {
+									$this->error = $msg;
+								} else {
+									$this->error = 'ErrorFoundBadEmailInFile '.$i.' '.$cpt.' '.$email; // We experience case where $langs->trans return an empty string.
+								}
 							}
 						}
 					}
 					fclose($handle);
 
-					if ($i > 0)
-					{
+					if ($i > 0) {
 						return -$i;
 					}
 				} else {
@@ -201,14 +213,11 @@ class mailing_xinputfile extends MailingTargets
 				dol_syslog(get_class($this)."::add_to_target mailing ".$cpt." targets found");
 			} else {
 				$langs->load("errors");
-				if ($resupload < 0)	// Unknown error
-				{
+				if ($resupload < 0) {	// Unknown error
 					$this->error = '<div class="error">'.$langs->trans("ErrorFileNotUploaded").'</div>';
-				} elseif (preg_match('/ErrorFileIsInfectedWithAVirus/', $resupload))	// Files infected by a virus
-				{
+				} elseif (preg_match('/ErrorFileIsInfectedWithAVirus/', $resupload)) {	// Files infected by a virus
 					$this->error = '<div class="error">'.$langs->trans("ErrorFileIsInfectedWithAVirus").'</div>';
-				} else // Known error
-				{
+				} else { // Known error
 					$this->error = '<div class="error">'.$langs->trans($resupload).'</div>';
 				}
 			}

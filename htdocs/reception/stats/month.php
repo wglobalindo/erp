@@ -1,6 +1,7 @@
 <?php
 /* Copyright (C) 2001-2003 Rodolphe Quiedeville <rodolphe@quiedeville.org>
  * Copyright (C) 2004-2009 Laurent Destailleur  <eldy@users.sourceforge.net>
+ * Copyright (C) 2024       Frédéric France         <frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,33 +19,49 @@
 
 /**
  *    \file       htdocs/reception/stats/month.php
- *    \ingroup    commande
+ *    \ingroup    order
  *    \brief      Page des stats receptions par mois
  */
 
+// Load Dolibarr environment
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/reception/class/reception.class.php';
 require_once DOL_DOCUMENT_ROOT.'/reception/class/receptionstats.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/dolgraph.class.php';
 
-$year = GETPOST("year", 'int');
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
+
+$year = GETPOSTINT("year");
+$socid = GETPOSTINT("socid");
+$userid = GETPOSTINT("userid");
+
+// Security check
+if ($user->socid) {
+	$socid = $user->socid;
+}
+$result = restrictedArea($user, 'reception', 0, '');
 
 
 /*
  * View
  */
 
-llxHeader();
+llxHeader('', '', '', '', 0, 0, '', '', '', 'mod-reception page-stats_month');
 
 $WIDTH = DolGraph::getDefaultGraphSizeForStats('width');
 $HEIGHT = DolGraph::getDefaultGraphSizeForStats('height');
 
 $mesg = '';
 
-print load_fiche_titre($langs->trans("StatisticsOfReceptions").' '.GETPOST("year", 'int'), $mesg);
-
-$stats = new ReceptionStats($db);
-$data = $stats->getNbReceptionByMonth(GETPOST("year", 'int'));
+print load_fiche_titre($langs->trans("StatisticsOfReceptions").' '.GETPOSTINT("year"), $mesg);
+$stats = new ReceptionStats($db, $socid, '', ($userid > 0 ? $userid : 0));
+$data = $stats->getNbByMonth($year);
 
 dol_mkdir($conf->reception->dir_temp);
 
@@ -53,8 +70,7 @@ $fileurl = DOL_URL_ROOT.'/viewimage.php?modulepart=receptionstats&file=reception
 
 $px = new DolGraph();
 $mesg = $px->isGraphKo();
-if (!$mesg)
-{
+if (!$mesg) {
 	$px->SetData($data);
 	$px->SetMaxValue($px->GetCeilMaxValue());
 	$px->SetWidth($WIDTH);

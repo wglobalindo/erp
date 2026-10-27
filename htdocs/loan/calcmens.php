@@ -1,11 +1,11 @@
 <?php
-/* TVI
- * Copyright (C) 2015	Florian HENRY 		<florian.henry@open-concept.pro>
- * Copyright (C) 2020   Maxime DEMAREST     <maxime@indelog.fr>
+/* Copyright (C) 2015	    Florian HENRY 		    <florian.henry@open-concept.pro>
+ * Copyright (C) 2020       Maxime DEMAREST         <maxime@indelog.fr>
+ * Copyright (C) 2024-2026  Frédéric France         <frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
@@ -24,18 +23,32 @@
  *  \brief File to calculate loan monthly payments
  */
 
-if (!defined('NOTOKENRENEWAL')) define('NOTOKENRENEWAL', '1'); // Disables token renewal
-if (!defined('NOREQUIREMENU'))  define('NOREQUIREMENU', '1');
-if (!defined('NOREQUIREAJAX'))  define('NOREQUIREAJAX', '1');
+if (!defined('NOTOKENRENEWAL')) {
+	define('NOTOKENRENEWAL', '1'); // Disables token renewal
+}
+if (!defined('NOREQUIREMENU')) {
+	define('NOREQUIREMENU', '1');
+}
+if (!defined('NOREQUIREAJAX')) {
+	define('NOREQUIREAJAX', '1');
+}
 
+// Load Dolibarr environment
 require '../main.inc.php';
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
 require DOL_DOCUMENT_ROOT.'/core/lib/loan.lib.php';
 
-$mens = GETPOST('mens');
-$capital = GETPOST('capital');
-$rate = GETPOST('rate');
-$echance = GETPOST('echeance');
-$nbterm = GETPOST('nbterm');
+$mens = (float) price2num(GETPOST('mens'));
+$capital = (float) price2num(GETPOST('capital'));
+$rate = (float) price2num(GETPOST('rate'));
+$echance = GETPOSTINT('echeance');
+$nbterm = GETPOSTINT('nbterm');
 
 top_httphead();
 

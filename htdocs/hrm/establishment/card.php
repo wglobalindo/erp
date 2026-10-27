@@ -1,5 +1,7 @@
 <?php
 /* Copyright (C) 2015      Alexandre Spangaro	<aspangaro@open-dsi.fr>
+ * Copyright (C) 2024       Frédéric France         <frederic.france@free.fr>
+ * Copyright (C) 2025		MDW						<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,81 +21,102 @@
  *  \file       	htdocs/hrm/establishment/card.php
  *  \brief      	Page to show an establishment
  */
+
+// Load Dolibarr environment
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/hrm.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/hrm/class/establishment.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/company.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.formcompany.class.php';
 
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Societe $mysoc
+ * @var Translate $langs
+ * @var User $user
+ */
+
 // Load translation files required by the page
 $langs->loadLangs(array('admin', 'hrm'));
-
-// Security check
-if (!$user->admin) accessforbidden();
 
 $error = 0;
 
 $action = GETPOST('action', 'aZ09');
 $cancel = GETPOST('cancel', 'alpha');
 $confirm = GETPOST('confirm', 'alpha');
-$id = GETPOST('id', 'int');
+$id = GETPOSTINT('id');
 
 // List of status
 static $tmpstatus2label = array(
-		'0'=>'CloseEtablishment',
-		'1'=>'OpenEtablishment'
+		'0' => 'CloseEtablishment',
+		'1' => 'OpenEtablishment'
 );
 $status2label = array('');
-foreach ($tmpstatus2label as $key => $val) $status2label[$key] = $langs->trans($val);
+foreach ($tmpstatus2label as $key => $val) {
+	$status2label[$key] = $langs->trans($val);
+}
 
 $object = new Establishment($db);
 
 // Load object
-include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php'; // Must be include, not include_once
+include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php'; // Must be 'include', not 'include_once'
+
+$permissiontoread = $user->admin;
+$permissiontoadd = $user->admin; // Used by the include of actions_addupdatedelete.inc.php
+$permissiontodelete = $user->admin;
+
+$upload_dir = $conf->hrm->multidir_output[isset($object->entity) ? $object->entity : 1];
+
+// Security check - Protection if external user
+//if ($user->socid > 0) accessforbidden();
+//if ($user->socid > 0) $socid = $user->socid;
+//$isdraft = (($object->status == $object::STATUS_DRAFT) ? 1 : 0);
+//restrictedArea($user, $object->element, $object->id, '', '', 'fk_soc', 'rowid', 0);
+if (!isModEnabled('hrm')) {
+	accessforbidden();
+}
+if (empty($permissiontoread)) {
+	accessforbidden();
+}
 
 
 /*
  * Actions
  */
 
-if ($action == 'confirm_delete' && $confirm == "yes")
-{
-	$result = $object->delete($id);
-	if ($result >= 0)
-	{
+if ($action == 'confirm_delete' && $confirm == "yes" && $permissiontodelete) {
+	$result = $object->delete($user);
+	if ($result >= 0) {
 		header("Location: ../admin/admin_establishment.php");
 		exit;
 	} else {
 		setEventMessages($object->error, $object->errors, 'errors');
 	}
-} elseif ($action == 'add')
-{
-	if (!$cancel)
-	{
+} elseif ($action == 'add' && $permissiontoadd) {
+	if (!$cancel) {
 		$error = 0;
 
 		$object->label = GETPOST('label', 'alpha');
-		if (empty($object->label))
-		{
+		if (empty($object->label)) {
 			setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("Label")), null, 'errors');
 			$error++;
 		}
 
-		if (empty($error))
-		{
+		if (empty($error)) {
 			$object->address = GETPOST('address', 'alpha');
-			$object->zip 			= GETPOST('zipcode', 'alpha');
-			$object->town			= GETPOST('town', 'alpha');
-			$object->country_id     = $_POST["country_id"];
-			$object->status = GETPOST('status', 'int');
+			$object->zip = GETPOST('zipcode', 'alpha');
+			$object->town = GETPOST('town', 'alpha');
+			$object->country_id = GETPOSTINT("country_id");
+			$object->status = GETPOSTINT('status');
 			$object->fk_user_author	= $user->id;
 			$object->datec = dol_now();
-			$object->entity = GETPOST('entity', 'int') > 0 ?GETPOST('entity', 'int') : $conf->entity;
+			$object->entity = GETPOSTINT('entity') > 0 ? GETPOSTINT('entity') : $conf->entity;
 
 			$id = $object->create($user);
 
-			if ($id > 0)
-			{
+			if ($id > 0) {
 				header("Location: ".$_SERVER["PHP_SELF"]."?id=".$id);
 				exit;
 			} else {
@@ -106,11 +129,8 @@ if ($action == 'confirm_delete' && $confirm == "yes")
 		header("Location: ../admin/admin_establishment.php");
 		exit;
 	}
-}
-
-// Update record
-elseif ($action == 'update')
-{
+} elseif ($action == 'update' && $permissiontoadd) {
+	// Update record
 	$error = 0;
 
 	if (!$cancel) {
@@ -120,32 +140,31 @@ elseif ($action == 'update')
 			$error++;
 		}
 
-		if (empty($error))
-		{
+		if (empty($error)) {
 			$object->label = GETPOST('label', 'alphanohtml');
 			$object->address = GETPOST('address', 'alpha');
 			$object->zip 			= GETPOST('zipcode', 'alpha');
 			$object->town			= GETPOST('town', 'alpha');
-			$object->country_id     = GETPOST('country_id', 'int');
+			$object->country_id     = GETPOSTINT('country_id');
 			$object->fk_user_mod = $user->id;
-			$object->status         = GETPOST('status', 'int');
-			$object->entity         = GETPOST('entity', 'int') > 0 ?GETPOST('entity', 'int') : $conf->entity;
+			$object->status         = GETPOSTINT('status');
+			$object->entity         = GETPOSTINT('entity') > 0 ? GETPOSTINT('entity') : $conf->entity;
 
 			$result = $object->update($user);
 
-			if ($result > 0)
-			{
-				header("Location: ".$_SERVER["PHP_SELF"]."?id=".$_POST['id']);
+			if ($result > 0) {
+				header("Location: ".$_SERVER["PHP_SELF"]."?id=".GETPOSTINT('id'));
 				exit;
 			} else {
 				setEventMessages($object->error, $object->errors, 'errors');
 			}
 		}
 	} else {
-		header("Location: ".$_SERVER["PHP_SELF"]."?id=".$_POST['id']);
+		header("Location: ".$_SERVER["PHP_SELF"]."?id=".GETPOSTINT('id'));
 		exit;
 	}
 }
+
 
 /*
  * View
@@ -156,11 +175,8 @@ llxHeader();
 $form = new Form($db);
 $formcompany = new FormCompany($db);
 
-/*
- * Action create
- */
-if ($action == 'create')
-{
+// Action create
+if ($action == 'create') {
 	print load_fiche_titre($langs->trans("NewEstablishment"));
 
 	print '<form action="'.$_SERVER["PHP_SELF"].'" method="POST">';
@@ -174,12 +190,12 @@ if ($action == 'create')
 	// Name
 	print '<tr>';
 	print '<td>'.$form->editfieldkey('Label', 'label', '', $object, 0, 'string', '', 1).'</td>';
-	print '<td><input name="label" id="label" value="'.GETPOST("label", "alphanohtml").'"></td>';
+	print '<td><input name="label" id="label" value="'.GETPOST("label", "alphanohtml").'" autofocus></td>';
 	print '</tr>';
 
 	// Entity
 	/*
-	if (! empty($conf->multicompany->enabled)) {
+	if (isModEnabled('multicompany')) {
 		print '<tr>';
 		print '<td>'.$form->editfieldkey('Parent', 'entity', '', $object, 0, 'string', '', 1).'</td>';
 		print '<td class="maxwidthonsmartphone">';
@@ -227,8 +243,10 @@ if ($action == 'create')
 	print '<tr>';
 	print '<td>'.$form->editfieldkey('Country', 'selectcountry_id', '', $object, 0).'</td>';
 	print '<td class="maxwidthonsmartphone">';
-	print $form->select_country(GETPOSTISSET('country_id') ? GETPOST('country_id', 'int') : ($object->country_id ? $object->country_id : $mysoc->country_id), 'country_id');
-		if ($user->admin) print info_admin($langs->trans("YouCanChangeValuesForThisListFromDictionarySetup"), 1);
+	print $form->select_country((string) (GETPOSTISSET('country_id') ? GETPOSTINT('country_id') : ($object->country_id ? $object->country_id : $mysoc->country_id)), 'country_id');
+	if ($user->admin) {
+		print info_admin($langs->trans("YouCanChangeValuesForThisListFromDictionarySetup"), 1);
+	}
 	print '</td>';
 	print '</tr>';
 
@@ -253,16 +271,13 @@ if ($action == 'create')
 }
 
 // Part to edit record
-if (($id || $ref) && $action == 'edit')
-{
+if ((!empty($id) || !empty($ref)) && $action == 'edit') {
 	$result = $object->fetch($id);
-	if ($result > 0)
-	{
+	if ($result > 0) {
 		$head = establishment_prepare_head($object);
 
-		if ($action == 'edit')
-		{
-			print dol_get_fiche_head($head, 'card', $langs->trans("Establishment"), 0, 'building');
+		if ($action == 'edit') {
+			print dol_get_fiche_head($head, 'card', $langs->trans("Establishment"), 0, $object->picto);
 
 			print '<form name="update" action="'.$_SERVER["PHP_SELF"].'" method="POST">'."\n";
 			print '<input type="hidden" name="token" value="'.newToken().'">';
@@ -284,12 +299,12 @@ if (($id || $ref) && $action == 'edit')
 
 			// Entity
 			/*
-            if (! empty($conf->multicompany->enabled)) {
-	            print '<tr><td>'.$form->editfieldkey('Parent', 'entity', '', $object, 0, 'string', '', 1).'</td>';
+			if (isModEnabled('multicompany')) {
+				print '<tr><td>'.$form->editfieldkey('Parent', 'entity', '', $object, 0, 'string', '', 1).'</td>';
 				print '<td class="maxwidthonsmartphone">';
 				print $object->entity > 0 ? $object->entity : $conf->entity;
-	            print '</td></tr>';
-            }*/
+				print '</td></tr>';
+			}*/
 
 			// Address
 			print '<tr><td>'.$form->editfieldkey('Address', 'address', '', $object, 0).'</td>';
@@ -312,8 +327,10 @@ if (($id || $ref) && $action == 'edit')
 			// Country
 			print '<tr><td>'.$form->editfieldkey('Country', 'selectcountry_id', '', $object, 0).'</td>';
 			print '<td class="maxwidthonsmartphone">';
-			print $form->select_country($object->country_id, 'country_id');
-				if ($user->admin) print info_admin($langs->trans("YouCanChangeValuesForThisListFromDictionarySetup"), 1);
+			print $form->select_country((string) $object->country_id, 'country_id');
+			if ($user->admin) {
+				print info_admin($langs->trans("YouCanChangeValuesForThisListFromDictionarySetup"), 1);
+			}
 			print '</td>';
 			print '</tr>';
 
@@ -326,27 +343,23 @@ if (($id || $ref) && $action == 'edit')
 
 			print dol_get_fiche_end();
 
-			print '<div class="center">';
-			print '<input type="submit" class="button button-save" value="'.$langs->trans("Save").'">';
-			print '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
-			print '<input type="submit" name="cancel" class="button button-cancel" value="'.$langs->trans("Cancel").'">';
-			print '</div>';
+			print $form->buttonsSaveCancel();
 
 			print '</form>';
 		}
-	} else dol_print_error($db);
+	} else {
+		dol_print_error($db);
+	}
 }
 
-if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'create')))
-{
+if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'create'))) {
 	$res = $object->fetch_optionals();
 
 	$head = establishment_prepare_head($object);
-	print dol_get_fiche_head($head, 'card', $langs->trans("Establishment"), -1, 'building');
+	print dol_get_fiche_head($head, 'card', $langs->trans("Establishment"), -1, $object->picto);
 
 	// Confirmation to delete
-	if ($action == 'delete')
-	{
+	if ($action == 'delete') {
 		print $form->formconfirm($_SERVER["PHP_SELF"]."?id=".$id, $langs->trans("DeleteEstablishment"), $langs->trans("ConfirmDeleteEstablishment"), "confirm_delete");
 	}
 
@@ -375,7 +388,7 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 
 	// Entity
 	/*
-	if ($conf->multicompany->enabled) {
+	if (!isModEnabled('multicompany') {
 		print '<tr>';
 		print '<td class="titlefield">'.$langs->trans("Entity").'</td>';
 		print '<td>'.$object->entity.'</td>';
@@ -404,11 +417,10 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 	print '<tr>';
 	print '<td>'.$langs->trans("Country").'</td>';
 	print '<td>';
-	if ($object->country_id > 0)
-	{
+	if ($object->country_id > 0) {
 		$img = picto_from_langcode($object->country_code);
 		print $img ? $img.' ' : '';
-		print getCountry($object->getCountryCode(), 0, $db);
+		print getCountry($object->getCountryCode(), '', $db);
 	}
 	print '</td>';
 	print '</tr>';
@@ -421,12 +433,16 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 	print dol_get_fiche_end();
 
 	/*
-     * Barre d'actions
-    */
-
+	 * Action bar
+	 */
 	print '<div class="tabsAction">';
-	print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?action=edit&id='.$id.'">'.$langs->trans('Modify').'</a>';
-	print '<a class="butActionDelete" href="'.$_SERVER["PHP_SELF"].'?action=delete&token='.newToken().'&id='.$id.'">'.$langs->trans('Delete').'</a>';
+
+	// Modify
+	print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?action=edit&token='.newToken().'&id='.$id.'">'.$langs->trans('Modify').'</a>';
+
+	// Delete
+	print dolGetButtonAction($langs->trans("Delete"), '', 'delete', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=delete&token='.newToken(), 'delete', $permissiontodelete);
+
 	print '</div>';
 }
 
