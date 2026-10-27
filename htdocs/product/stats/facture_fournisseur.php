@@ -150,7 +150,7 @@ if ($id > 0 || !empty($ref)) {
 
 
 		if ($user->hasRight('fournisseur', 'facture', 'lire')) {
-			$sql = "SELECT DISTINCT s.nom as name, s.rowid as socid, s.code_client, d.rowid, d.pu_ht as subprice, d.total_ht as line_total_ht,"; // WINSOFT PATCH: unit price column
+			$sql = "SELECT DISTINCT s.nom as name, s.rowid as socid, s.code_client, d.rowid, d.total_ht as line_total_ht,";
 			$sql .= " f.rowid as facid, f.ref, f.ref_supplier, f.datef, f.libelle as label, f.total_ht, f.total_ttc, f.total_tva, f.paye, f.fk_statut as statut, d.qty";
 			if (!$user->hasRight('societe', 'client', 'voir')) {
 				$sql .= ", sc.fk_soc, sc.fk_user ";
@@ -247,7 +247,6 @@ if ($id > 0 || !empty($ref)) {
 				print_liste_field_titre("SupplierCode", $_SERVER["PHP_SELF"], "s.code_client", "", $option, '', $sortfield, $sortorder);
 				print_liste_field_titre("DateInvoice", $_SERVER["PHP_SELF"], "f.datef", "", $option, 'align="center"', $sortfield, $sortorder);
 				print_liste_field_titre("Qty", $_SERVER["PHP_SELF"], "d.qty", "", $option, 'align="center"', $sortfield, $sortorder);
-				print_liste_field_titre("PriceUHT", $_SERVER["PHP_SELF"], "d.pu_ht", "", $option, 'align="right"', $sortfield, $sortorder); // WINSOFT PATCH: unit price column
 				print_liste_field_titre("AmountHT", $_SERVER["PHP_SELF"], "d.total_ht", "", $option, 'align="right"', $sortfield, $sortorder);
 				print_liste_field_titre("Status", $_SERVER["PHP_SELF"], "f.paye,f.fk_statut", "", $option, 'align="right"', $sortfield, $sortorder);
 				print "</tr>\n";
@@ -279,7 +278,6 @@ if ($id > 0 || !empty($ref)) {
 						print '<td class="center">';
 						print dol_print_date($db->jdate($objp->datef), 'dayhour')."</td>";
 						print '<td class="center">'.$objp->qty."</td>\n";
-						print '<td class="right">'.price($objp->subprice)."</td>\n"; // WINSOFT PATCH: unit price column
 						print '<td align="right">'.price($objp->line_total_ht)."</td>\n";
 						print '<td align="right">'.$supplierinvoicestatic->LibStatut($objp->paye, $objp->statut, 5, $supplierinvoicestatic->getSommePaiement()).'</td>';
 						print "</tr>\n";
@@ -294,7 +292,6 @@ if ($id > 0 || !empty($ref)) {
 				}
 				print '<td colspan="3"></td>';
 				print '<td class="center">'.$total_qty.'</td>';
-				print '<td></td>'; // WINSOFT PATCH: unit price column
 				print '<td align="right">'.price($total_ht).'</td>';
 				print '<td></td>';
 				print "</table>";
