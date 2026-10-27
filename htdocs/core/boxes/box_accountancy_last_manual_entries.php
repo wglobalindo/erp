@@ -3,6 +3,7 @@
  * Copyright (C) 2004-2009	Laurent Destailleur		<eldy@users.sourceforge.net>
  * Copyright (C) 2005-2009	Regis Houssin			<regis.houssin@inodbox.com>
  * Copyright (C) 2019		Alexandre Spangaro		<aspangaro@open-dsi.fr>
+ * Copyright (C) 2024-2026	MDW							<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,20 +34,9 @@ include_once DOL_DOCUMENT_ROOT.'/core/boxes/modules_boxes.php';
 class box_accountancy_last_manual_entries extends ModeleBoxes
 {
 	public $boxcode = "accountancy_last_manual_entries";
-	public $boximg = "object_invoice";
+	public $boximg = "accountancy";
 	public $boxlabel = "BoxLastManualEntries";
 	public $depends = array("accounting");
-
-	/**
-	 * @var DoliDB Database handler.
-	 */
-	public $db;
-
-	public $param;
-
-	public $info_box_head = array();
-	public $info_box_contents = array();
-
 
 	/**
 	 *  Constructor
@@ -54,13 +44,13 @@ class box_accountancy_last_manual_entries extends ModeleBoxes
 	 *  @param  DoliDB  $db         Database handler
 	 *  @param  string  $param      More parameters
 	 */
-	public function __construct($db, $param)
+	public function __construct($db, $param)  // @phpstan-ignore constructor.unusedParameter
 	{
 		global $user;
 
 		$this->db = $db;
 
-		$this->hidden = !($user->rights->accounting->mouvements->lire);
+		$this->hidden = !$user->hasRight('accounting', 'mouvements', 'lire');
 	}
 
 	/**
@@ -79,8 +69,7 @@ class box_accountancy_last_manual_entries extends ModeleBoxes
 
 		$this->info_box_head = array('text' => $langs->trans("BoxTitleLastManualEntries", $max));
 
-		if ($user->rights->accounting->mouvements->lire)
-		{
+		if ($user->hasRight('accounting', 'mouvements', 'lire')) {
 			$sql = "SELECT DISTINCT b.piece_num";
 			$sql .= ", b.doc_date as date_movement";
 			$sql .= ", b.label_operation";
@@ -88,7 +77,7 @@ class box_accountancy_last_manual_entries extends ModeleBoxes
 			$sql .= ", b.code_journal";
 			$sql .= " FROM ".MAIN_DB_PREFIX."accounting_bookkeeping as b";
 			$sql .= " WHERE b.fk_doc = 0";
-			$sql .= " AND b.entity = ".$conf->entity;
+			$sql .= " AND b.entity = ".((int) $conf->entity);
 			$sql .= " ORDER BY b.piece_num DESC ";
 			$sql .= $this->db->plimit($max, 0);
 
@@ -103,9 +92,11 @@ class box_accountancy_last_manual_entries extends ModeleBoxes
 					$date		= $this->db->jdate($objp->date_movement);
 					$journal	= $objp->code_journal;
 					$label = $objp->label_operation;
-					$amount		= $objp->amount;
+					$amount = $objp->amount;
 
-					$bookkeepingstatic->id = $objp->id;
+					// adding id (rowid) will give two lines (debit and credit)
+					// so rowid isn't in sql request
+					// $bookkeepingstatic->id = $objp->id;
 					$bookkeepingstatic->piece_num = $objp->piece_num;
 
 					$this->info_box_contents[$line][] = array(
@@ -115,7 +106,7 @@ class box_accountancy_last_manual_entries extends ModeleBoxes
 					);
 
 					$this->info_box_contents[$line][] = array(
-						'td' => 'class="right"',
+						'td' => 'class="center nowraponall"',
 						'text' => dol_print_date($date, 'day'),
 						'asis' => 1,
 					);
@@ -133,23 +124,25 @@ class box_accountancy_last_manual_entries extends ModeleBoxes
 					);
 
 					$this->info_box_contents[$line][] = array(
-						'td' => 'class="nowraponall right"',
+						'td' => 'class="nowraponall right amount"',
 						'text' => price($amount, 0, $langs, 0, -1, -1, $conf->currency),
 					);
 
 					$line++;
 				}
 
-				if ($num == 0) $this->info_box_contents[$line][0] = array(
+				if ($num == 0) {
+					$this->info_box_contents[$line][0] = array(
 					'td' => 'class="center"',
-					'text'=> '<span class="opacitymedium">'.$langs->trans("NoRecordedManualEntries").'</span>'
-				);
+					'text' => '<span class="opacitymedium">'.$langs->trans("NoRecordedManualEntries").'</span>'
+					);
+				}
 
 				$this->db->free($result);
 			} else {
 				$this->info_box_contents[0][0] = array(
 					'td' => '',
-					'maxlength'=>500,
+					'maxlength' => 500,
 					'text' => ($this->db->error().' sql='.$sql),
 				);
 			}
@@ -161,12 +154,15 @@ class box_accountancy_last_manual_entries extends ModeleBoxes
 		}
 	}
 
+
+
+
 	/**
-	 *	Method to show box
+	 *	Method to show box.  Called when the box needs to be displayed.
 	 *
-	 *	@param	array	$head       Array with properties of box title
-	 *	@param  array	$contents   Array with properties of box lines
-	 *  @param	int		$nooutput	No print, only return string
+	 *	@param	?array<array{text?:string,sublink?:string,subtext?:string,subpicto?:?string,picto?:string,nbcol?:int,limit?:int,subclass?:string,graph?:int<0,1>,target?:string}>   $head       Array with properties of box title
+	 *	@param	?array<array{tr?:string,td?:string,target?:string,text?:string,text2?:string,textnoformat?:string,tooltip?:string,logo?:string,url?:string,maxlength?:int,asis?:int<0,1>}>   $contents   Array with properties of box lines
+	 *	@param	int<0,1>	$nooutput	No print, only return string
 	 *	@return	string
 	 */
 	public function showBox($head = null, $contents = null, $nooutput = 0)

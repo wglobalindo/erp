@@ -2,9 +2,13 @@
 Order=Orden
 PdfOrderTitle=Orden
 Orders=Órdenes
+OrderDate=Fecha de la Orden
 OrderDateShort=Fecha de la Orden
 OrderToProcess=Orden a procesar
 NewOrder=Nueva Orden
+NewSupplierOrderShort=Nueva Orden
+NewOrderSupplier=Nueva Orden de Compra
+SupplierOrder=Orden de compra
 SuppliersOrders=Ordenes de compra
 CustomerOrder=Ordenes de venta
 StatusOrderCanceledShort=Cancelado

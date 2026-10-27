@@ -1,7 +1,8 @@
 <?php
 /* Copyright (C) 2005-2011  Laurent Destailleur     <eldy@users.sourceforge.net>
  * Copyright (C) 2010       Juanjo Menent           <jmenent@2byte.es>
- * Copyright (C) 2018       Frédéric France         <frederic.france@netlogic.fr>
+ * Copyright (C) 2018-2025  Frédéric France         <frederic.france@free.fr>
+ * Copyright (C) 2024-2026	MDW						<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,16 +21,16 @@
 /**
  *       \file       htdocs/core/class/html.formsms.class.php
  *       \ingroup    core
- *       \brief      Fichier de la classe permettant la generation du formulaire html d'envoi de mail unitaire
+ *       \brief      Class file for generating the HTML form used to send individual SMS messages
  */
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.form.class.php';
 
 
 /**
- *      Classe permettant la generation du formulaire d'envoi de Sms
+ *      Class for generating the SMS sending form
  *      Usage: $formsms = new FormSms($db)
- *             $formsms->proprietes=1 ou chaine ou tableau de valeurs
- *             $formsms->show_form() affiche le formulaire
+ *             $formsms->proprietes=1 or string or table of values
+ *             $formsms->show_form() displays the form
  */
 class FormSms
 {
@@ -38,33 +39,101 @@ class FormSms
 	 */
 	public $db;
 
+	/**
+	 * @var int
+	 */
 	public $fromid;
+	/**
+	 * @var string
+	 */
 	public $fromname;
+	/**
+	 * @var string
+	 */
 	public $fromsms;
+
+	/**
+	 * @var string
+	 */
 	public $fromtype;
+	/**
+	 * @var string
+	 */
 	public $replytoname;
+	/**
+	 * @var string
+	 */
 	public $replytomail;
+	/**
+	 * @var string
+	 */
 	public $toname;
+	/**
+	 * @var string
+	 */
 	public $tomail;
 
+	/**
+	 * @var int<0,1>
+	 */
 	public $withsubstit; // Show substitution array
+
+	/**
+	 * @var int<0,1>
+	 */
 	public $withfrom;
+
+	/**
+	 * @var int<0,1>|string[]
+	 */
 	public $withto;
+
+	/**
+	 * @var int<0,1>
+	 */
 	public $withtopic;
+
+	/**
+	 * @var int<0,1>
+	 */
 	public $withbody;
 
 	/**
 	 * @var int 	Id of company
 	 */
 	public $withtosocid;
-
+	/**
+	 * @var int<0,1>
+	 */
 	public $withfromreadonly;
+	/**
+	 * @var int<0,1>
+	 */
 	public $withreplytoreadonly;
+	/**
+	 * @var int<0,1>
+	 */
 	public $withtoreadonly;
+	/**
+	 * @var int<0,1>
+	 */
 	public $withtopicreadonly;
+	/**
+	 * @var int<0,1>
+	 */
+	public $withbodyreadonly;
+	/**
+	 * @var int<0,1>
+	 */
 	public $withcancel;
 
+	/**
+	 * @var array<string,string>
+	 */
 	public $substit = array();
+	/**
+	 * @var array{}|array{action:string,models:string,smsid:int,returnurl:string}
+	 */
 	public $param = array();
 
 	/**
@@ -104,29 +173,30 @@ class FormSms
 	 *	Show the form to input an sms.
 	 *
 	 *	@param	string	$morecss Class on first column td
-	 *  @param int $showform Show form tags and submit button (recommanded is to use with value 0)
+	 *  @param int $showform Show form tags and submit button (recommended is to use with value 0)
 	 *	@return	void
 	 */
 	public function show_form($morecss = 'titlefield', $showform = 1)
 	{
-	 // phpcs:enable
-		global $conf, $langs, $user, $form;
+		// phpcs:enable
+		global $conf, $langs, $form;
 
-		if (!is_object($form)) $form = new Form($this->db);
+		if (!is_object($form)) {
+			$form = new Form($this->db);
+		}
 
 		// Load translation files required by the page
 		$langs->loadLangs(array('other', 'mails', 'sms'));
 
 		$soc = new Societe($this->db);
-		if (!empty($this->withtosocid) && $this->withtosocid > 0)
-		{
+		if (!empty($this->withtosocid) && $this->withtosocid > 0) {
 			$soc->fetch($this->withtosocid);
 		}
 
 		print "\n<!-- Begin form SMS -->\n";
 
 		print '
-<script language="javascript">
+<script nonce="'.getNonce().'" type="text/javascript">
 function limitChars(textarea, limit, infodiv)
 {
     var text = textarea.value;
@@ -138,22 +208,21 @@ function limitChars(textarea, limit, infodiv)
 }
 </script>';
 
-		if ($showform) print "<form method=\"POST\" name=\"smsform\" enctype=\"multipart/form-data\" action=\"".$this->param["returnurl"]."\">\n";
+		if ($showform) {
+			print "<form method=\"POST\" name=\"smsform\" enctype=\"multipart/form-data\" action=\"".$this->param["returnurl"]."\">\n";
+		}
 
 		print '<input type="hidden" name="token" value="'.newToken().'">';
-		foreach ($this->param as $key=>$value)
-		{
+		foreach ($this->param as $key => $value) {
 			print "<input type=\"hidden\" name=\"$key\" value=\"$value\">\n";
 		}
 		print "<table class=\"border centpercent\">\n";
 
 		// Substitution array
-		if (!empty($this->withsubstit))		// Unset or set ->withsubstit=0 to disable this.
-		{
+		if (!empty($this->withsubstit)) {		// Unset or set ->withsubstit=0 to disable this.
 			print "<tr><td colspan=\"2\">";
 			$help = "";
-			foreach ($this->substit as $key => $val)
-			{
+			foreach ($this->substit as $key => $val) {
 				$help .= $key.' -> '.$langs->trans($val).'<br>';
 			}
 			print $form->textwithpicto($langs->trans("SmsTestSubstitutionReplacedByGenericValues"), $help);
@@ -161,88 +230,74 @@ function limitChars(textarea, limit, infodiv)
 		}
 
 		// From
-		if ($this->withfrom)
-		{
-			if ($this->withfromreadonly)
-			{
+		if ($this->withfrom) {
+			if ($this->withfromreadonly) {
 				print '<tr><td class="titlefield '.$morecss.'">'.$langs->trans("SmsFrom");
 				print '<input type="hidden" name="fromsms" value="'.$this->fromsms.'">';
 				print "</td><td>";
-				if ($this->fromtype == 'user')
-				{
+				if ($this->fromtype == 'user') {
 					$langs->load("users");
 					$fuser = new User($this->db);
 					$fuser->fetch($this->fromid);
 					print $fuser->getNomUrl(1);
 					print ' &nbsp; ';
 				}
-				if ($this->fromsms)
-				{
+				if ($this->fromsms) {
 					print $this->fromsms;
 				} else {
-					if ($this->fromtype)
-					{
+					if ($this->fromtype) {
 						$langs->load("errors");
-						print '<font class="warning"> &lt;'.$langs->trans("ErrorNoPhoneDefinedForThisUser").'&gt; </font>';
+						print '<span class="warning"> &lt;'.$langs->trans("ErrorNoPhoneDefinedForThisUser").'&gt; </span>';
 					}
 				}
 				print "</td></tr>\n";
 				print "</td></tr>\n";
 			} else {
 				print '<tr><td class="'.$morecss.'">'.$langs->trans("SmsFrom")."</td><td>";
-				//print '<input type="text" name="fromname" size="30" value="'.$this->fromsms.'">';
-				if ($conf->global->MAIN_SMS_SENDMODE == 'ovh')        // For backward compatibility        @deprecated
-				{
-					dol_include_once('/ovh/class/ovhsms.class.php');
-					try {
-						$sms = new OvhSms($this->db);
-						if (empty($conf->global->OVHSMS_ACCOUNT))
-						{
-							$resultsender = 'ErrorOVHSMS_ACCOUNT not defined';
-						} else {
-							$resultsender = $sms->SmsSenderList();
-						}
-					} catch (Exception $e)
-					{
-						dol_print_error('', 'Error to get list of senders: '.$e->getMessage());
+				$resultsender = array();
+				$sms = null;
+				if (getDolGlobalString('MAIN_SMS_SENDMODE')) {
+					$sendmode = getDolGlobalString('MAIN_SMS_SENDMODE');	// $conf->global->MAIN_SMS_SENDMODE looks like a value 'module'
+					$classmoduleofsender = getDolGlobalString('MAIN_MODULE_'.strtoupper($sendmode).'_SMS', $sendmode);	// $conf->global->MAIN_MODULE_XXX_SMS looks like a value 'class@module'
+					if ($classmoduleofsender == 'ovh') {
+						$classmoduleofsender = 'ovhsms@ovh';	// For backward compatibility
 					}
-				} elseif (!empty($conf->global->MAIN_SMS_SENDMODE))    // $conf->global->MAIN_SMS_SENDMODE looks like a value 'class@module'
-				{
-					$tmp = explode('@', $conf->global->MAIN_SMS_SENDMODE);
-					$classfile = $tmp[0]; $module = (empty($tmp[1]) ? $tmp[0] : $tmp[1]);
+
+					$tmp = explode('@', $classmoduleofsender);
+					$classfile = $tmp[0];
+					$module = (empty($tmp[1]) ? $tmp[0] : $tmp[1]);
 					dol_include_once('/'.$module.'/class/'.$classfile.'.class.php');
 					try {
 						$classname = ucfirst($classfile);
-						if (class_exists($classname))
-						{
+						if (class_exists($classname)) {
 							$sms = new $classname($this->db);
-							$resultsender = $sms->SmsSenderList();
+							'@phan-var-force CommonObject $sms';
+							$resultsender = $sms->SmsSenderList();  // @phan-suppress-current-line PhanUndeclaredMethod
 						} else {
 							$sms = new stdClass();
-							$sms->error = 'The SMS manager "'.$classfile.'" defined into SMS setup MAIN_SMS_SENDMODE is not found';
+							$sms->error = 'The SMS manager "'.$classfile.'" defined into SMS setup MAIN_MODULE_'.strtoupper($sendmode).'_SMS is not found';
 						}
-					} catch (Exception $e)
-					{
-						dol_print_error('', 'Error to get list of senders: '.$e->getMessage());
+					} catch (Exception $e) {
+						dol_print_error(null, 'Error to get list of senders: '.$e->getMessage());
 						exit;
 					}
 				} else {
 					dol_syslog("Warning: The SMS sending method has not been defined into MAIN_SMS_SENDMODE", LOG_WARNING);
-					$resultsender = array();
+					$resultsender = array(0 => new stdClass());
 					$resultsender[0]->number = $this->fromsms;
 				}
 
-				if (is_array($resultsender) && count($resultsender) > 0)
-				{
+				if (is_array($resultsender) && count($resultsender) > 0) {
 					print '<select name="fromsms" id="fromsms" class="flat">';
-					foreach ($resultsender as $obj)
-					{
+					foreach ($resultsender as $obj) {
 						print '<option value="'.$obj->number.'">'.$obj->number.'</option>';
 					}
 					print '</select>';
 				} else {
-					print '<span class="error">'.$langs->trans("SmsNoPossibleSenderFound");
-					if (is_object($sms) && !empty($sms->error)) print ' '.$sms->error;
+					print '<span class="error wordbreak">'.$langs->trans("SmsNoPossibleSenderFound");
+					if (is_object($sms) && !empty($sms->error)) {
+						print ' '.$sms->error;
+					}
 					print '</span>';
 				}
 				print '</td>';
@@ -251,56 +306,51 @@ function limitChars(textarea, limit, infodiv)
 		}
 
 		// To (target)
-		if ($this->withto || is_array($this->withto))
-		{
+		if ($this->withto || is_array($this->withto)) {
 			print '<tr><td>';
 			//$moretext=$langs->trans("YouCanUseCommaSeparatorForSeveralRecipients");
 			$moretext = '';
 			print $form->textwithpicto($langs->trans("SmsTo"), $moretext);
 			print '</td><td>';
-			if ($this->withtoreadonly)
-			{
+			if ($this->withtoreadonly) {
 				print (!is_array($this->withto) && !is_numeric($this->withto)) ? $this->withto : "";
 			} else {
-				print "<input size=\"16\" id=\"sendto\" name=\"sendto\" value=\"".dol_escape_htmltag(!is_array($this->withto) && $this->withto != '1' ? (isset($_REQUEST["sendto"]) ?GETPOST("sendto") : $this->withto) : "+")."\">";
-				if (!empty($this->withtosocid) && $this->withtosocid > 0)
-				{
+				print '<input class="width150" id="sendto" name="sendto" spellcheck="false" value="'.dol_escape_htmltag(!is_array($this->withto) ? (GETPOSTISSET("sendto") ? GETPOST("sendto") : $this->withto) : "+").'">';
+				if (!empty($this->withtosocid) && $this->withtosocid > 0) {
 					$liste = array();
-					foreach ($soc->thirdparty_and_contact_phone_array() as $key => $value)
-					{
+					foreach ($soc->thirdparty_and_contact_phone_array() as $key => $value) {
 						$liste[$key] = $value;
 					}
 					print " ".$langs->trans("or")." ";
 					//var_dump($_REQUEST);exit;
 					print $form->selectarray("receiver", $liste, GETPOST("receiver"), 1);
 				}
-				print ' <span class="opacitymedium">'.$langs->trans("SmsInfoNumero").'</span>';
+				print '<span class="opacitymedium hideonsmartphone"> '.$langs->trans("SmsInfoNumero").'</span>';
 			}
 			print "</td></tr>\n";
 		}
 
 		// Message
-		if ($this->withbody)
-		{
+		if ($this->withbody) {
 			$defaultmessage = '';
-			if ($this->param["models"] == 'body')
-			{
+			if ($this->param["models"] == 'body') {
 				$defaultmessage = $this->withbody;
 			}
 			$defaultmessage = make_substitutions($defaultmessage, $this->substit);
-			if (GETPOSTISSET("message")) $defaultmessage = GETPOST("message", 'restricthtml');
+			if (GETPOSTISSET("message")) {
+				$defaultmessage = GETPOST("message", 'restricthtml');
+			}
 			$defaultmessage = str_replace('\n', "\n", $defaultmessage);
 
 			print "<tr>";
 			print '<td class="tdtop">'.$langs->trans("SmsText")."</td>";
 			print "<td>";
-			if ($this->withbodyreadonly)
-			{
+			if ($this->withbodyreadonly) {
 				print nl2br($defaultmessage);
 				print '<input type="hidden" name="message" value="'.dol_escape_htmltag($defaultmessage).'">';
 			} else {
 				print '<textarea class="quatrevingtpercent" name="message" id="message" rows="'.ROWS_4.'" onkeyup="limitChars(this, 160, \'charlimitinfospan\')">'.$defaultmessage.'</textarea>';
-				print '<div id="charlimitinfo">'.$langs->trans("SmsInfoCharRemain").': <span id="charlimitinfospan">'.(160 - dol_strlen($defaultmessage)).'</span></div></td>';
+				print '<div id="charlimitinfo" class="opacitymedium">'.$langs->trans("SmsInfoCharRemain").': <span id="charlimitinfospan">'.(160 - dol_strlen($defaultmessage)).'</span></div></td>';
 			}
 			print "</td></tr>\n";
 		}
@@ -335,12 +385,10 @@ function limitChars(textarea, limit, infodiv)
 		print "</table>\n";
 
 
-		if ($showform)
-		{
+		if ($showform) {
 			print '<div class="center">';
-			print '<input class="button" type="submit" name="sendmail" value="'.dol_escape_htmltag($langs->trans("SendSms")).'">';
-			if ($this->withcancel)
-			{
+			print '<input type="submit" class="button" name="sendmail" value="'.dol_escape_htmltag($langs->trans("SendSms")).'">';
+			if ($this->withcancel) {
 				print '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
 				print '<input class="button button-cancel" type="submit" name="cancel" value="'.dol_escape_htmltag($langs->trans("Cancel")).'">';
 			}

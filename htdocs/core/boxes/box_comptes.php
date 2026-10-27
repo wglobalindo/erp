@@ -3,7 +3,8 @@
  * Copyright (C) 2005-2013 Laurent Destailleur  <eldy@users.sourceforge.net>
  * Copyright (C) 2005-2009 Regis Houssin        <regis.houssin@inodbox.com>
  * Copyright (C) 2013      Juanjo Menent        <jmenent@2byte.es>
- * Copyright (C) 2015      Frederic France      <frederic.france@free.fr>
+ * Copyright (C) 2015-2025  Frédéric France      <frederic.france@free.fr>
+ * Copyright (C) 2024-2026	MDW							<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,26 +30,16 @@ include_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
 
 
 /**
- * Class to manage the box to show last users
+ * Class to manage the box to show bank accounts
  */
 class box_comptes extends ModeleBoxes
 {
-	public $boxcode = "currentaccounts";
-	public $boximg = "object_bill";
+	public $boxcode  = "currentaccounts";
+	public $boximg   = "bank_account";
 	public $boxlabel = "BoxCurrentAccounts";
-	public $depends = array("banque"); // Box active if module banque active
+	public $depends  = array("banque"); // Box active if module banque active
 
-	/**
-	 * @var DoliDB Database handler.
-	 */
-	public $db;
-
-	public $param;
 	public $enabled = 1;
-
-	public $info_box_head = array();
-	public $info_box_contents = array();
-
 
 	/**
 	 *  Constructor
@@ -56,17 +47,21 @@ class box_comptes extends ModeleBoxes
 	 *  @param  DoliDB	$db      	Database handler
 	 *  @param	string	$param		More parameters
 	 */
-	public function __construct($db, $param = '')
+	public function __construct($db, $param = '')  // @phpstan-ignore constructor.unusedParameter
 	{
 		global $conf, $user;
 
 		$this->db = $db;
 
 		// disable module for such cases
-		$listofmodulesforexternal = explode(',', $conf->global->MAIN_MODULES_FOR_EXTERNAL);
-		if (!in_array('banque', $listofmodulesforexternal) && !empty($user->socid)) $this->enabled = 0; // disabled for external users
+		$listofmodulesforexternal = explode(',', getDolGlobalString('MAIN_MODULES_FOR_EXTERNAL'));
+		if (!in_array('banque', $listofmodulesforexternal) && !empty($user->socid)) {
+			$this->enabled = 0; // disabled for external users
+		}
 
-		$this->hidden = !($user->rights->banque->lire);
+		$this->hidden = !$user->hasRight('banque', 'lire');
+		$this->urltoaddentry = DOL_URL_ROOT.'/compta/bank/card.php?action=create';
+		$this->msgNoRecords = 'NoRecordedBankAccounts';
 	}
 
 	/**
@@ -81,25 +76,28 @@ class box_comptes extends ModeleBoxes
 
 		$this->max = $max;
 
-		$this->info_box_head = array('text' => $langs->trans("BoxTitleCurrentAccounts"));
+		$this->info_box_head = array(
+			'text' => $langs->trans("BoxTitleCurrentAccounts").'<a class="paddingleft" href="'.DOL_URL_ROOT.'/compta/bank/list.php?search_status=opened"><span class="badge">...</span></a>'
+		);
 
-		if ($user->rights->banque->lire) {
-			$sql = "SELECT b.rowid, b.ref, b.label, b.bank,b.number, b.courant, b.clos, b.rappro, b.url";
+		if ($user->hasRight('banque', 'lire')) {
+			$sql = "SELECT b.rowid, b.ref, b.label, b.bank, b.number, b.courant, b.clos, b.rappro, b.url";
 			$sql .= ", b.code_banque, b.code_guichet, b.cle_rib, b.bic, b.iban_prefix as iban";
-			$sql .= ", b.domiciliation, b.proprio, b.owner_address";
+			$sql .= ", b.domiciliation as address, b.proprio, b.owner_address";
 			$sql .= ", b.account_number, b.currency_code";
 			$sql .= ", b.min_allowed, b.min_desired, comment";
 			$sql .= ', b.fk_accountancy_journal';
 			$sql .= ', aj.code as accountancy_journal';
 			$sql .= " FROM ".MAIN_DB_PREFIX."bank_account as b";
-			$sql .= ' LEFT JOIN '.MAIN_DB_PREFIX.'accounting_journal as aj ON aj.rowid=b.fk_accountancy_journal';
-			$sql .= " WHERE b.entity = ".$conf->entity;
+			$sql .= ' LEFT JOIN '.MAIN_DB_PREFIX.'accounting_journal as aj ON aj.rowid = b.fk_accountancy_journal';
+			$sql .= " WHERE b.entity = ".((int) $conf->entity);
 			$sql .= " AND clos = 0";
-			//$sql.= " AND courant = 1";
 			$sql .= " ORDER BY label";
+
 			$sql .= $this->db->plimit($max, 0);
 
 			dol_syslog(get_class($this)."::loadBox", LOG_DEBUG);
+
 			$result = $this->db->query($sql);
 			if ($result) {
 				$num = $this->db->num_rows($result);
@@ -120,7 +118,12 @@ class box_comptes extends ModeleBoxes
 					$account_static->accountancy_journal = $objp->accountancy_journal;
 					$solde = $account_static->solde(0);
 
-					$solde_total[$objp->currency_code] += $solde;
+					if (!array_key_exists($objp->currency_code, $solde_total)) {
+						$solde_total[$objp->currency_code] = $solde;
+					} else {
+						$solde_total[$objp->currency_code] += $solde;
+					}
+
 
 					$this->info_box_contents[$line][] = array(
 						'td' => '',
@@ -134,15 +137,18 @@ class box_comptes extends ModeleBoxes
 					);
 
 					$this->info_box_contents[$line][] = array(
-						'td' => 'class="right nowraponall"',
-						'text' => price($solde, 0, $langs, 1, -1, -1, $objp->currency_code)
+						'td' => 'class="nowraponall right amount"',
+						'text' => '<a href="'.DOL_URL_ROOT.'/compta/bank/bankentries_list.php?id='.$account_static->id.'">'
+									.price($solde, 0, $langs, 1, -1, -1, $objp->currency_code)
+									.'</a>',
+						'asis' => 1,
 					);
 
 					$line++;
 				}
 
 				// Total
-				foreach ($solde_total as $key=>$solde) {
+				foreach ($solde_total as $key => $solde) {
 					$this->info_box_contents[$line][] = array(
 						'tr' => 'class="liste_total"',
 						'td' => 'class="liste_total left"',
@@ -154,35 +160,38 @@ class box_comptes extends ModeleBoxes
 					);
 
 					$this->info_box_contents[$line][] = array(
-						'td' => 'class="liste_total right nowraponall"',
-						'text' => price($solde, 0, $langs, 0, -1, -1, $key)
+						'td' => 'class="liste_total nowraponall right amount"',
+						'text' => '<span class="amount">'.price($solde, 0, $langs, 0, -1, -1, $key).'</span>'
 					);
 					$line++;
 				}
+
 
 				$this->db->free($result);
 			} else {
 				$this->info_box_contents[0][0] = array(
 					'td' => '',
-					'maxlength'=>500,
+					'maxlength' => 500,
 					'text' => ($this->db->error().' sql='.$sql),
 				);
 			}
 		} else {
 			$this->info_box_contents[0][0] = array(
-				'td' => 'class="nohover opacitymedium left"',
-				'text' => $langs->trans("ReadPermissionNotAllowed")
+				'td' => 'class="nohover left"',
+				'text' => '<span class="opacitymedium">'.$langs->trans("ReadPermissionNotAllowed").'</span>'
 			);
 		}
 	}
 
+
+
 	/**
-	 *  Method to show box
+	 *	Method to show box.  Called when the box needs to be displayed.
 	 *
-	 *  @param  array   $head       Array with properties of box title
-	 *  @param  array   $contents   Array with properties of box lines
-	 *  @param  int     $nooutput   No print, only return string
-	 *  @return string
+	 *	@param	?array<array{text?:string,sublink?:string,subtext?:string,subpicto?:?string,picto?:string,nbcol?:int,limit?:int,subclass?:string,graph?:int<0,1>,target?:string}>   $head       Array with properties of box title
+	 *	@param	?array<array{tr?:string,td?:string,target?:string,text?:string,text2?:string,textnoformat?:string,tooltip?:string,logo?:string,url?:string,maxlength?:int,asis?:int<0,1>}>   $contents   Array with properties of box lines
+	 *	@param	int<0,1>	$nooutput	No print, only return string
+	 *	@return	string
 	 */
 	public function showBox($head = null, $contents = null, $nooutput = 0)
 	{

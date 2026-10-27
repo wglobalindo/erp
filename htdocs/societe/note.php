@@ -5,6 +5,7 @@
  * Copyright (C) 2010      Juanjo Menent        <jmenent@2byte.es>
  * Copyright (C) 2013      Florian Henry	  	<florian.henry@open-concept.pro>
  * Copyright (C) 2015      Marcos García        <marcosgdf@gmail.com>
+ * Copyright (C) 2024       Frédéric France         <frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,32 +27,61 @@
  *   \ingroup    societe
  */
 
+
+// Load Dolibarr environment
 require '../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/company.lib.php';
 
-$action = GETPOST('action', 'aZ09');
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
 
+// Load translation files required by the page
 $langs->load("companies");
 
-// Security check
-$id = GETPOST('id') ?GETPOST('id', 'int') : GETPOST('socid', 'int');
-if ($user->socid) $id = $user->socid;
-$result = restrictedArea($user, 'societe', $id, '&societe');
 
+// Get parameters
+$id = GETPOST('id') ? GETPOSTINT('id') : GETPOSTINT('socid');
+$action = GETPOST('action', 'aZ09');
+
+
+// Initialize objects
 $object = new Societe($db);
-if ($id > 0) $object->fetch($id);
+if ($id > 0) {
+	$object->fetch($id);
+}
 
-$permissionnote = $user->rights->societe->creer; // Used by the include of actions_setnotes.inc.php
+// Permissions
+$permissionnote = $user->hasRight('societe', 'creer'); // Used by the include of actions_setnotes.inc.php
 
-// Initialize technical object to manage hooks of page. Note that conf->hooks_modules contains array of hook context
+// Initialize a technical object to manage hooks of page. Note that conf->hooks_modules contains an array of hook context
 $hookmanager->initHooks(array('thirdpartynote', 'globalcard'));
+
+// Security check
+if ($user->socid > 0) {
+	unset($action);
+	$socid = $user->socid;
+}
+
+$result = restrictedArea($user, 'societe', $object->id, '&societe');
 
 
 /*
  * Actions
  */
 
-include DOL_DOCUMENT_ROOT.'/core/actions_setnotes.inc.php'; // Must be include, not includ_once
+$parameters = array();
+$reshook = $hookmanager->executeHooks('doActions', $parameters, $object, $action); // Note that $action and $object may have been modified by some hooks
+if ($reshook < 0) {
+	setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
+}
+if (empty($reshook)) {
+	include DOL_DOCUMENT_ROOT.'/core/actions_setnotes.inc.php'; // Must be 'include', not 'include_once'
+}
 
 
 /*
@@ -61,16 +91,16 @@ include DOL_DOCUMENT_ROOT.'/core/actions_setnotes.inc.php'; // Must be include, 
 $form = new Form($db);
 
 $title = $langs->trans("ThirdParty").' - '.$langs->trans("Notes");
-if (!empty($conf->global->MAIN_HTML_TITLE) && preg_match('/thirdpartynameonly/', $conf->global->MAIN_HTML_TITLE) && $object->name) $title = $object->name.' - '.$langs->trans("Notes");
+if (getDolGlobalString('MAIN_HTML_TITLE') && preg_match('/thirdpartynameonly/', getDolGlobalString('MAIN_HTML_TITLE')) && $object->name) {
+	$title = $object->name.' - '.$langs->trans("Notes");
+}
 $help_url = 'EN:Module_Third_Parties|FR:Module_Tiers|ES:Empresas';
 llxHeader('', $title, $help_url);
 
-if ($object->id > 0)
-{
+if ($object->id > 0) {
 	/*
-     * Affichage onglets
-     */
-	if (!empty($conf->notification->enabled)) $langs->load("mails");
+	 * Show tabs
+	 */
 
 	$head = societe_prepare_head($object);
 
@@ -89,32 +119,32 @@ if ($object->id > 0)
 	print '<div class="underbanner clearboth"></div>';
 	print '<table class="border centpercent tableforfield">';
 
-	if (!empty($conf->global->SOCIETE_USEPREFIX))  // Old not used prefix field
-	{
-		print '<tr><td class="'.$cssclass.'">'.$langs->trans('Prefix').'</td><td colspan="3">'.$object->prefix_comm.'</td></tr>';
+	// Type Prospect/Customer/Supplier
+	print '<tr><td class="titlefield">'.$langs->trans('NatureOfThirdParty').'</td><td>';
+	print $object->getTypeUrl(1);
+	print '</td></tr>';
+
+	if ($object->client) {
+		print '<tr><td class="'.$cssclass.'">';
+		print $langs->trans('CustomerCode').'</td><td colspan="3">';
+		print showValueWithClipboardCPButton(dol_escape_htmltag($object->code_client));
+		$tmpcheck = $object->check_codeclient();
+		if ($tmpcheck != 0 && $tmpcheck != -5) {
+			print ' <span class="error">('.$langs->trans("WrongCustomerCode").')</span>';
+		}
+		print '</td></tr>';
 	}
 
-    if ($object->client) {
-        print '<tr><td class="'.$cssclass.'">';
-        print $langs->trans('CustomerCode').'</td><td colspan="3">';
-        print $object->code_client;
-        $tmpcheck = $object->check_codeclient();
-        if ($tmpcheck != 0 && $tmpcheck != -5) {
-        	print ' <font class="error">('.$langs->trans("WrongCustomerCode").')</font>';
-        }
-        print '</td></tr>';
-    }
-
-    if ($object->fournisseur) {
-        print '<tr><td class="'.$cssclass.'">';
-        print $langs->trans('SupplierCode').'</td><td colspan="3">';
-        print $object->code_fournisseur;
-        $tmpcheck = $object->check_codefournisseur();
-        if ($tmpcheck != 0 && $tmpcheck != -5) {
-        	print ' <font class="error">('.$langs->trans("WrongSupplierCode").')</font>';
-        }
-        print '</td></tr>';
-    }
+	if ($object->fournisseur) {
+		print '<tr><td class="'.$cssclass.'">';
+		print $langs->trans('SupplierCode').'</td><td colspan="3">';
+		print showValueWithClipboardCPButton(dol_escape_htmltag($object->code_fournisseur));
+		$tmpcheck = $object->check_codefournisseur();
+		if ($tmpcheck != 0 && $tmpcheck != -5) {
+			print ' <span class="error">('.$langs->trans("WrongSupplierCode").')</span>';
+		}
+		print '</td></tr>';
+	}
 
 	print "</table>";
 

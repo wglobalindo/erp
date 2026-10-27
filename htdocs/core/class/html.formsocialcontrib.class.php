@@ -1,5 +1,6 @@
 <?php
 /* Copyright (C) 2012 Laurent Destailleur   <eldy@users.sourceforge.net>
+ * Copyright (C) 2024		MDW						<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -53,36 +54,34 @@ class FormSocialContrib
 	 *  Return list of social contributions.
 	 *  Use mysoc->country_id or mysoc->country_code so they must be defined.
 	 *
-	 *	@param	string	$selected       Preselected type
-	 *	@param  string	$htmlname       Name of field in form
-	 * 	@param	int		$useempty		Set to 1 if we want an empty value
-	 * 	@param	int		$maxlen			Max length of text in combo box
-	 * 	@param	int		$help			Add or not the admin help picto
-	 *  @param	string	$morecss		Add more CSS on select
-	 *  @param	int		$noerrorifempty	No print error if list is empty for the country
+	 *	@param	int			$selected       Preselected type
+	 *	@param  string		$htmlname       Name of field in form
+	 * 	@param	int<0,1>	$useempty		Set to 1 if we want an empty value
+	 * 	@param	int			$maxlen			Max length of text in combo box
+	 * 	@param	int<0,1>	$help			Add or not the admin help picto
+	 *  @param	string		$morecss		Add more CSS on select
+	 *  @param	int<0,1>	$noerrorifempty	No print error if list is empty for the country
 	 * 	@return	void
 	 */
-	public function select_type_socialcontrib($selected = '', $htmlname = 'actioncode', $useempty = 0, $maxlen = 40, $help = 1, $morecss = 'minwidth300', $noerrorifempty = 0)
+	public function select_type_socialcontrib($selected = 0, $htmlname = 'actioncode', $useempty = 0, $maxlen = 40, $help = 1, $morecss = 'minwidth300', $noerrorifempty = 0)
 	{
 		// phpcs:enable
 		global $conf, $db, $langs, $user, $mysoc;
 
-		if (empty($mysoc->country_id) && empty($mysoc->country_code))
-		{
+		if (empty($mysoc->country_id) && empty($mysoc->country_code)) {
 			print $langs->trans("ErrorSetupOfCountryMustBeDone");
 			return;
 		}
 
-		if (!empty($mysoc->country_id))
-		{
+		if (!empty($mysoc->country_id)) {
 			$sql = "SELECT c.id, c.libelle as type";
-			$sql .= " FROM ".MAIN_DB_PREFIX."c_chargesociales as c";
+			$sql .= " FROM ".$this->db->prefix()."c_chargesociales as c";
 			$sql .= " WHERE c.active = 1";
-			$sql .= " AND c.fk_pays = ".$mysoc->country_id;
+			$sql .= " AND c.fk_pays = ".((int) $mysoc->country_id);
 			$sql .= " ORDER BY c.libelle ASC";
 		} else {
 			$sql = "SELECT c.id, c.libelle as type";
-			$sql .= " FROM ".MAIN_DB_PREFIX."c_chargesociales as c, ".MAIN_DB_PREFIX."c_country as co";
+			$sql .= " FROM ".$this->db->prefix()."c_chargesociales as c, ".$this->db->prefix()."c_country as co";
 			$sql .= " WHERE c.active = 1 AND c.fk_pays = co.rowid";
 			$sql .= " AND co.code = '".$this->db->escape($mysoc->country_code)."'";
 			$sql .= " ORDER BY c.libelle ASC";
@@ -90,28 +89,35 @@ class FormSocialContrib
 
 		dol_syslog("Form::select_type_socialcontrib", LOG_DEBUG);
 		$resql = $this->db->query($sql);
-		if ($resql)
-		{
+		if ($resql) {
 			$num = $this->db->num_rows($resql);
-			if ($num)
-			{
+			if ($num) {
 				print '<select class="'.($morecss ? $morecss : '').'" id="'.$htmlname.'" name="'.$htmlname.'">';
 				$i = 0;
 
-				if ($useempty) print '<option value="0">&nbsp;</option>';
-				while ($i < $num)
-				{
+				if ($useempty) {
+					print '<option value="0">&nbsp;</option>';
+				}
+				while ($i < $num) {
 					$obj = $this->db->fetch_object($resql);
 					print '<option value="'.$obj->id.'"';
-					if ($obj->id == $selected) print ' selected';
+					if ($obj->id == $selected) {
+						print ' selected';
+					}
 					print '>'.dol_trunc($obj->type, $maxlen);
 					$i++;
 				}
 				print '</select>';
-				if ($user->admin && $help) print info_admin($langs->trans("YouCanChangeValuesForThisListFromDictionarySetup"), 1);
-				if (!empty($conf->use_javascript_ajax)) print ajax_combobox($htmlname);
+				if ($user->admin && $help) {
+					print info_admin($langs->trans("YouCanChangeValuesForThisListFromDictionarySetup"), 1);
+				}
+				if (!empty($conf->use_javascript_ajax)) {
+					print ajax_combobox($htmlname);
+				}
 			} else {
-				if (empty($noerrorifempty)) print $langs->trans("ErrorNoSocialContributionForSellerCountry", $mysoc->country_code);
+				if (empty($noerrorifempty)) {
+					print $langs->trans("ErrorNoSocialContributionForSellerCountry", $mysoc->country_code);
+				}
 			}
 		} else {
 			dol_print_error($this->db);

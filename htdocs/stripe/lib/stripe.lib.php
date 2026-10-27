@@ -1,5 +1,7 @@
 <?php
 /* Copyright (C) 2017      Alexandre Spangaro   <aspangaro@open-dsi.fr>
+ * Copyright (C) 2024		Frédéric France			<frederic.france@free.fr>
+ * Copyright (C) 2024-2025	MDW						<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,7 +28,7 @@ require_once DOL_DOCUMENT_ROOT.'/core/lib/payments.lib.php';
 /**
  *  Define head array for tabs of stripe tools setup pages
  *
- *  @return			Array of head
+ * @return	array<array{0:string,1:string,2:string}>	Array of tabs to show
  */
 function stripeadmin_prepare_head()
 {
@@ -67,59 +69,60 @@ function html_print_stripe_footer($fromcompany, $langs)
 
 	// Juridical status
 	$line1 = "";
-	if ($fromcompany->forme_juridique_code)
-	{
-		$line1 .= ($line1 ? " - " : "").getFormeJuridiqueLabel($fromcompany->forme_juridique_code);
+	if ($fromcompany->forme_juridique_code) {
+		$line1 .= ($line1 ? " - " : "").getFormeJuridiqueLabel((string) $fromcompany->forme_juridique_code);
 	}
 	// Capital
-	if ($fromcompany->capital)
-	{
-		$line1 .= ($line1 ? " - " : "").$langs->transnoentities("CapitalOf", $fromcompany->capital)." ".$langs->transnoentities("Currency".$conf->currency);
+	if ($fromcompany->capital) {
+		$line1 .= ($line1 ? " - " : "").$langs->transnoentities("CapitalOf", (string) $fromcompany->capital)." ".$langs->transnoentities("Currency".getDolCurrency());
 	}
 
 	$reg = array();
 
 	// Prof Id 1
-	if ($fromcompany->idprof1 && ($fromcompany->country_code != 'FR' || !$fromcompany->idprof2))
-	{
+	if ($fromcompany->idprof1 && ($fromcompany->country_code != 'FR' || !$fromcompany->idprof2)) {
 		$field = $langs->transcountrynoentities("ProfId1", $fromcompany->country_code);
-		if (preg_match('/\((.*)\)/i', $field, $reg)) $field = $reg[1];
+		if (preg_match('/\((.*)\)/i', $field, $reg)) {
+			$field = $reg[1];
+		}
 		$line1 .= ($line1 ? " - " : "").$field.": ".$fromcompany->idprof1;
 	}
 	// Prof Id 2
-	if ($fromcompany->idprof2)
-	{
+	if ($fromcompany->idprof2) {
 		$field = $langs->transcountrynoentities("ProfId2", $fromcompany->country_code);
-		if (preg_match('/\((.*)\)/i', $field, $reg)) $field = $reg[1];
+		if (preg_match('/\((.*)\)/i', $field, $reg)) {
+			$field = $reg[1];
+		}
 		$line1 .= ($line1 ? " - " : "").$field.": ".$fromcompany->idprof2;
 	}
 
 	// Second line of company infos
 	$line2 = "";
 	// Prof Id 3
-	if ($fromcompany->idprof3)
-	{
+	if ($fromcompany->idprof3) {
 		$field = $langs->transcountrynoentities("ProfId3", $fromcompany->country_code);
-		if (preg_match('/\((.*)\)/i', $field, $reg)) $field = $reg[1];
+		if (preg_match('/\((.*)\)/i', $field, $reg)) {
+			$field = $reg[1];
+		}
 		$line2 .= ($line2 ? " - " : "").$field.": ".$fromcompany->idprof3;
 	}
 	// Prof Id 4
-	if ($fromcompany->idprof4)
-	{
+	if ($fromcompany->idprof4) {
 		$field = $langs->transcountrynoentities("ProfId4", $fromcompany->country_code);
-		if (preg_match('/\((.*)\)/i', $field, $reg)) $field = $reg[1];
+		if (preg_match('/\((.*)\)/i', $field, $reg)) {
+			$field = $reg[1];
+		}
 		$line2 .= ($line2 ? " - " : "").$field.": ".$fromcompany->idprof4;
 	}
 	// IntraCommunautary VAT
-	if ($fromcompany->tva_intra != '')
-	{
+	if ($fromcompany->tva_intra != '') {
 		$line2 .= ($line2 ? " - " : "").$langs->transnoentities("VATIntraShort").": ".$fromcompany->tva_intra;
 	}
 
 	print '<br><br><hr>'."\n";
-	print '<div class="center"><font style="font-size: 10px;">'."\n";
+	print '<div class="center"><span style="font-size: 10px;">'."\n";
 	print $fromcompany->name.'<br>';
 	print $line1.'<br>';
 	print $line2;
-	print '</font></div>'."\n";
+	print '</span></div>'."\n";
 }

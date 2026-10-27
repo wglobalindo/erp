@@ -1,48 +1,48 @@
-<?php if (!defined('ISLOADEDBYSTEELSHEET')) die('Must be call by steelsheet'); ?>
-/* <style type="text/css" > */
+<?php if (!defined('ISLOADEDBYSTEELSHEET')) {
+	die('Must be call by steelsheet');
+} ?>
 
-.mainmenu::before{
-    /* font part */
-    font-family: "Font Awesome 5 Free";
-    font-weight: 900;
-    font-style: normal;
-    font-variant: normal;
-    text-rendering: auto;
-    line-height: 26px;
-	font-size: 1.5em;
-    -webkit-font-smoothing: antialiased;
-    text-align:center;
+/* IDE Hack <style type="text/css"> */
+
+.mainmenu::before, .mainmenu span::before {
+	font-weight: 900;
+	font-style: normal;
+	font-variant: normal;
+	text-rendering: auto;
+	line-height: 26px;
+	font-size: 1.3em;
+	-webkit-font-smoothing: antialiased;
+	text-align:center;
 	text-decoration:none;
-	color: #<?php echo $colortextbackhmenu; ?>;
+}
+.mainmenu:not(.fab)::before, .mainmenu:not(.fab) span:not(.fab)::before {
+	font-family: "<?php echo getDolGlobalString('MAIN_FONTAWESOME_FAMILY', 'Font Awesome 5 Free'); ?>";
 }
 
-.fa-15x {
-    font-size: 1.5em;
+div.mainmenu.menu {
+	background-image: none;
 }
 
-div.mainmenu.ticket::before {
-    content: "\f3ff";
+/*
+div.mainmenu.menu::before {
+	content: "\f0c9";
 }
-div.mainmenu.ticket {
-    background-image: none !important;
-}
-
-
+*/
 
 div.mainmenu.generic1::before {
-    content: "\f249";
+	content: "\f249";
 }
 
 div.mainmenu.generic2::before {
-    content: "\f249";
+	content: "\f249";
 }
 
 div.mainmenu.generic3::before {
-    content: "\f249";
+	content: "\f249";
 }
 
 div.mainmenu.generic4::before {
-    content: "\f249";
+	content: "\f249";
 }
 
 /* Define color of some picto */
@@ -64,8 +64,11 @@ div.mainmenu.generic4::before {
 .fa-play {
 	color: #444;
 }
-.fa-unlink {
+.fa-link, .fa-unlink {
 	color: #555;
+}
+.fa-project-diagram:before {
+	font-size: 0.9em;
 }
 
 /* Define square Dolibarr logo in pure CSS */
@@ -96,4 +99,27 @@ div.mainmenu.generic4::before {
 	height: 25%;
 	border-bottom: solid 60px currentColor;
 	margin-left: 30px;
+}
+
+.tmenu span.fas, .tmenu span.far {
+	<?php
+	if (!getDolGlobalString('THEME_MENU_COLORLOGO')) {
+		echo "color: unset !important;";
+	}
+	?>;
+	line-height: <?php echo getDolGlobalString('THEME_TOPMENU_DISABLE_IMAGE') ? '16' : '28' ?>px;
+	text-align: center;
+}
+
+
+.em092 {
+	font-size: 0.92em;
+}
+
+.em088 {
+	font-size: 0.88em;
+}
+
+.em080 {
+	font-size: 0.80em;
 }

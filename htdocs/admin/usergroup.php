@@ -6,6 +6,8 @@
  * Copyright (C) 2004		Benoit Mortier			<benoit.mortier@opensides.be>
  * Copyright (C) 2005-2011	Regis Houssin			<regis.houssin@inodbox.com>
  * Copyright (C) 2015		Juanjo Menent			<jmenent@2byte.es>
+ * Copyright (C) 2024-2025	MDW							<mdeweerd@users.noreply.github.com>
+ * Copyright (C) 2024-2026  Frédéric France             <frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,20 +29,32 @@
  *		\brief      Page to setup usergroup module
  */
 
+// Load Dolibarr environment
 require '../main.inc.php';
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var ExtraFields $extrafields
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
+
 require_once DOL_DOCUMENT_ROOT.'/core/lib/usergroups.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
 
 // Load translation files required by the page
 $langs->loadLangs(array("admin", "members", "users"));
-if (!$user->admin) accessforbidden();
-
-$extrafields = new ExtraFields($db);
+if (!$user->admin) {
+	accessforbidden();
+}
 
 $action = GETPOST('action', 'aZ09');
 $value = GETPOST('value', 'alpha');
+$modulepart = GETPOST('modulepart', 'aZ09');	// Used by actions_setmoduleoptions.inc.php
+
 $type = 'group';
+
 
 /*
  * Action
@@ -48,25 +62,22 @@ $type = 'group';
 
 include DOL_DOCUMENT_ROOT.'/core/actions_setmoduleoptions.inc.php';
 
-if ($action == 'set_default')
-{
-	$ret = addDocumentModel($value, $type, $label, $scandir);
+$reg = array();
+
+if ($action == 'set_default') {
+	$ret = addDocumentModel($value, $type, '', '');
 	$res = true;
-} elseif ($action == 'del_default')
-{
+} elseif ($action == 'del_default') {
 	$ret = delDocumentModel($value, $type);
-	if ($ret > 0)
-	{
-		if ($conf->global->USERGROUP_ADDON_PDF_ODT == "$value") dolibarr_del_const($db, 'USERGROUP_ADDON_PDF_ODT', $conf->entity);
+	if ($ret > 0) {
+		if (getDolGlobalString('USERGROUP_ADDON_PDF_ODT') == "$value") {
+			dolibarr_del_const($db, 'USERGROUP_ADDON_PDF_ODT', $conf->entity);
+		}
 	}
 	$res = true;
-}
-
-// Set default model
-elseif ($action == 'setdoc')
-{
-	if (dolibarr_set_const($db, "USERGROUP_ADDON_PDF_ODT", $value, 'chaine', 0, '', $conf->entity))
-	{
+} elseif ($action == 'setdoc') {
+	// Set default model
+	if (dolibarr_set_const($db, "USERGROUP_ADDON_PDF_ODT", $value, 'chaine', 0, '', $conf->entity)) {
 		// La constante qui a ete lue en avant du nouveau set
 		// on passe donc par une variable pour avoir un affichage coherent
 		$conf->global->USERGROUP_ADDON_PDF_ODT = $value;
@@ -74,26 +85,21 @@ elseif ($action == 'setdoc')
 
 	// On active le modele
 	$ret = delDocumentModel($value, $type);
-	if ($ret > 0)
-	{
-		$ret = addDocumentModel($value, $type, $label, $scandir);
+	if ($ret > 0) {
+		$ret = addDocumentModel($value, $type, '', '');
 	}
 	$res = true;
-} elseif (preg_match('/set_([a-z0-9_\-]+)/i', $action, $reg))
-{
+} elseif (preg_match('/set_([a-z0-9_\-]+)/i', $action, $reg)) {
 	$code = $reg[1];
-	if (dolibarr_set_const($db, $code, 1, 'chaine', 0, '', $conf->entity) > 0)
-	{
+	if (dolibarr_set_const($db, $code, 1, 'chaine', 0, '', $conf->entity) > 0) {
 		header("Location: ".$_SERVER["PHP_SELF"]);
 		exit;
 	} else {
 		dol_print_error($db);
 	}
-} elseif (preg_match('/del_([a-z0-9_\-]+)/i', $action, $reg))
-{
+} elseif (preg_match('/del_([a-z0-9_\-]+)/i', $action, $reg)) {
 	$code = $reg[1];
-	if (dolibarr_del_const($db, $code, $conf->entity) > 0)
-	{
+	if (dolibarr_del_const($db, $code, $conf->entity) > 0) {
 		header("Location: ".$_SERVER["PHP_SELF"]);
 		exit;
 	} else {
@@ -105,9 +111,10 @@ elseif ($action == 'setdoc')
  */
 
 $help_url = 'EN:Module_Users|FR:Module_Utilisateurs|ES:M&oacute;dulo_Usuarios';
-llxHeader('', $langs->trans("UsersSetup"), $help_url);
+llxHeader('', $langs->trans("UsersSetup"), $help_url, '', 0, 0, '', '', '', 'mod-admin page-usergroup');
 
-$linkback = '<a href="'.DOL_URL_ROOT.'/admin/modules.php?restore_lastsearch_values=1">'.$langs->trans("BackToModuleList").'</a>';
+$linkback = '<a href="'.dolBuildUrl(DOL_URL_ROOT.'/admin/modules.php', ['restore_lastsearch_values' => 1]).'">'.img_picto($langs->trans("BackToModuleList"), 'back', 'class="pictofixedwidth"').'<span class="hideonsmartphone">'.$langs->trans("BackToModuleList").'</span></a>';
+
 print load_fiche_titre($langs->trans("UsersSetup"), $linkback, 'title_setup');
 
 
@@ -125,16 +132,16 @@ $def = array();
 $sql = "SELECT nom";
 $sql .= " FROM ".MAIN_DB_PREFIX."document_model";
 $sql .= " WHERE type = '".$db->escape($type)."'";
-$sql .= " AND entity = ".$conf->entity;
+$sql .= " AND entity = ".((int) $conf->entity);
 $resql = $db->query($sql);
-if ($resql)
-{
+if ($resql) {
 	$i = 0;
 	$num_rows = $db->num_rows($resql);
-	while ($i < $num_rows)
-	{
+	while ($i < $num_rows) {
 		$array = $db->fetch_array($resql);
-		array_push($def, $array[0]);
+		if (is_array($array)) {
+			array_push($def, $array[0]);
+		}
 		$i++;
 	}
 } else {
@@ -155,77 +162,74 @@ print "</tr>\n";
 
 clearstatcache();
 
-foreach ($dirmodels as $reldir)
-{
-	foreach (array('', '/doc') as $valdir)
-	{
+foreach ($dirmodels as $reldir) {
+	foreach (array('', '/doc') as $valdir) {
 		$dir = dol_buildpath($reldir."core/modules/usergroup".$valdir);
-		if (is_dir($dir))
-		{
+		if (is_dir($dir)) {
 			$handle = opendir($dir);
-			if (is_resource($handle))
-			{
-				while (($file = readdir($handle)) !== false)
-				{
+			if (is_resource($handle)) {
+				$filelist = array();
+				while (($file = readdir($handle)) !== false) {
 					$filelist[] = $file;
 				}
 				closedir($handle);
 				arsort($filelist);
 
-				foreach ($filelist as $file)
-				{
-					if (preg_match('/\.modules\.php$/i', $file) && preg_match('/^(pdf_|doc_)/', $file))
-					{
-						if (file_exists($dir.'/'.$file))
-						{
+				foreach ($filelist as $file) {
+					if (preg_match('/\.modules\.php$/i', $file) && preg_match('/^(pdf_|doc_)/', $file)) {
+						if (file_exists($dir.'/'.$file)) {
 							$name = substr($file, 4, dol_strlen($file) - 16);
 							$classname = substr($file, 0, dol_strlen($file) - 12);
 
 							require_once $dir.'/'.$file;
 							$module = new $classname($db);
+							'@phan-var-force ModelePDFUserGroup $module';
 
 							$modulequalified = 1;
-							if ($module->version == 'development' && $conf->global->MAIN_FEATURES_LEVEL < 2) $modulequalified = 0;
-							if ($module->version == 'experimental' && $conf->global->MAIN_FEATURES_LEVEL < 1) $modulequalified = 0;
+							if ($module->version == 'development' && getDolGlobalInt('MAIN_FEATURES_LEVEL') < 2) {
+								$modulequalified = 0;
+							}
+							if ($module->version == 'experimental' && getDolGlobalInt('MAIN_FEATURES_LEVEL') < 1) {
+								$modulequalified = 0;
+							}
 
-							if ($modulequalified)
-							{
+							if ($modulequalified) {
 								print '<tr class="oddeven"><td width="100">';
-								print (empty($module->name) ? $name : $module->name);
+								print(empty($module->name) ? $name : $module->name);
 								print "</td><td>\n";
-								if (method_exists($module, 'info')) print $module->info($langs);
-								else print $module->description;
+								if (method_exists($module, 'info')) {
+									print $module->info($langs);  // @phan-suppress-current-line PhanUndeclaredMethod
+								} else {
+									print $module->description;
+								}
 								print '</td>';
 
 								// Active
-								if (in_array($name, $def))
-								{
+								if (in_array($name, $def)) {
 									print '<td class="center">'."\n";
-									print '<a href="'.$_SERVER["PHP_SELF"].'?action=del_default&amp;token='.newToken().'&amp;value='.$name.'">';
+									print '<a href="'.$_SERVER["PHP_SELF"].'?action=del_default&token='.newToken().'&value='.urlencode($name).'">';
 									print img_picto($langs->trans("Enabled"), 'switch_on');
 									print '</a>';
 									print '</td>';
 								} else {
 									print '<td class="center">'."\n";
-									print '<a href="'.$_SERVER["PHP_SELF"].'?action=set_default&amp;token='.newToken().'&amp;value='.$name.'&amp;scandir='.$module->scandir.'&amp;label='.urlencode($module->name).'">'.img_picto($langs->trans("Disabled"), 'switch_off').'</a>';
+									print '<a href="'.$_SERVER["PHP_SELF"].'?action=set_default&token='.newToken().'&value='.urlencode($name).'&scandir='.urlencode($module->scandir).'&label='.urlencode($module->name).'">'.img_picto($langs->trans("Disabled"), 'switch_off').'</a>';
 									print "</td>";
 								}
 
-								// Defaut
+								// Default
 								print '<td class="center">';
-								if ($conf->global->USERGROUP_ADDON_PDF == $name)
-								{
+								if (getDolGlobalString('USERGROUP_ADDON_PDF') == $name) {
 									print img_picto($langs->trans("Default"), 'on');
 								} else {
-									print '<a href="'.$_SERVER["PHP_SELF"].'?action=setdoc&amp;token='.newToken().'&amp;value='.$name.'&amp;scandir='.$module->scandir.'&amp;label='.urlencode($module->name).'" alt="'.$langs->trans("Default").'">'.img_picto($langs->trans("Disabled"), 'off').'</a>';
+									print '<a href="'.$_SERVER["PHP_SELF"].'?action=setdoc&token='.newToken().'&value='.urlencode($name).'&scandir='.urlencode($module->scandir).'&label='.urlencode($module->name).'" alt="'.$langs->trans("Default").'">'.img_picto($langs->trans("Disabled"), 'off').'</a>';
 								}
 								print '</td>';
 
 								// Info
 								$htmltooltip = ''.$langs->trans("Name").': '.$module->name;
 								$htmltooltip .= '<br>'.$langs->trans("Type").': '.($module->type ? $module->type : $langs->trans("Unknown"));
-								if ($module->type == 'pdf')
-								{
+								if ($module->type == 'pdf') {
 									$htmltooltip .= '<br>'.$langs->trans("Width").'/'.$langs->trans("Height").': '.$module->page_largeur.'/'.$module->page_hauteur;
 								}
 								$htmltooltip .= '<br><br><u>'.$langs->trans("FeaturesSupported").':</u>';
@@ -234,16 +238,15 @@ foreach ($dirmodels as $reldir)
 
 
 								print '<td class="center">';
-								print $form->textwithpicto('', $htmltooltip, 1, 0);
+								print $form->textwithpicto('', $htmltooltip, 1, 'info');
 								print '</td>';
 
 								// Preview
 								print '<td class="center">';
-								if ($module->type == 'pdf')
-								{
-									print '<a href="'.$_SERVER["PHP_SELF"].'?action=specimen&module='.$name.'">'.img_object($langs->trans("Preview"), 'pdf').'</a>';
+								if ($module->type == 'pdf') {
+									print '<a href="'.dolBuildUrl($_SERVER["PHP_SELF"], ['action' => 'specimen', 'module' => $name], true).'">'.img_object($langs->trans("Preview"), 'pdf').'</a>';
 								} else {
-									print img_object($langs->trans("PreviewNotAvailable"), 'generic');
+									print img_object($langs->transnoentitiesnoconv("PreviewNotAvailable"), 'generic');
 								}
 								print '</td>';
 

@@ -1,5 +1,6 @@
 <?php
-/* Copyright (C) 2010 Laurent Destailleur         <eldy@users.sourceforge.net>
+/* Copyright (C) 2010 		Laurent Destailleur     <eldy@users.sourceforge.net>
+ * Copyright (C) 2024		Frédéric France			<frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,6 +37,9 @@ class GoogleAPI
 	 */
 	public $error = '';
 
+	/**
+	 * @var string google key
+	 */
 	public $key;
 
 	/**
@@ -66,10 +70,12 @@ class GoogleAPI
 		$i = 0;
 
 		// Desired address
-		$urladdress = "https://maps.google.com/maps/geo?q=".urlencode($address)."&output=xml&key=".$this->key;
+		$urladdress = "https://maps.google.com/maps/geo?q=".urlencode($address)."&output=xml&key=".urlencode($this->key);
 
 		// Retrieve the URL contents
-		$page = file_get_contents($urladdress);
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/geturl.lib.php';
+		$pagearray = getURLContent($urladdress, 'GET');
+		$page = $pagearray['content'];
 
 		$code = strstr($page, '<coordinates>');
 		$code = strstr($code, '>');
@@ -78,11 +84,12 @@ class GoogleAPI
 		//print $code;
 		//print "<br>";
 		$latitude = substr($code, 0, strpos($code, ","));
-		$longitude = substr($code, strpos($code, ",") + 1, dol_strlen(strpos($code, ",")) - 3);
+		$longitude = substr($code, strpos($code, ",") + 1, dol_strlen((string) strpos($code, ",")) - 3);
 
 		// Output the coordinates
 		//echo "Longitude: $longitude ',' Latitude: $latitude";
 
 		$i++;
+		return "Longitude: $longitude, Latitude: $latitude";
 	}
 }

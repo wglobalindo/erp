@@ -4,6 +4,8 @@
  * Copyright (C) 2005-2009	Regis Houssin		<regis.houssin@inodbox.com>
  * Copyright (C) 2019		Nicolas ZABOURI		<info@inovea-conseil.com>
  * Copyright (C) 2020		Tobias Sekan			<tobias.sekan@startmail.com>
+ * Copyright (C) 2024		MDW						<mdeweerd@users.noreply.github.com>
+ * Copyright (C) 2024       Frédéric France         <frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,17 +27,25 @@
  *  \brief		Home page of stock area
  */
 
+// Load Dolibarr environment
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/product/stock/class/entrepot.class.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
+require_once DOL_DOCUMENT_ROOT.'/product/stock/class/productlot.class.php';
 
-$hookmanager = new HookManager($db);
-
-// Initialize technical object to manage hooks. Note that conf->hooks_modules contains array
-$hookmanager->initHooks(array('stockindex'));
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
 
 // Load translation files required by the page
 $langs->loadLangs(array('stocks', 'productbatch'));
+
+// Initialize a technical object to manage hooks. Note that conf->hooks_modules contains array
+$hookmanager->initHooks(array('stockindex'));
 
 // Security check
 $result = restrictedArea($user, 'stock');
@@ -49,7 +59,7 @@ $producttmp = new Product($db);
 $warehouse = new Entrepot($db);
 
 $help_url = 'EN:Module_Stocks_En|FR:Module_Stock|ES:M&oacute;dulo_Stocks';
-llxHeader("", $langs->trans("Stocks"), $help_url);
+llxHeader("", $langs->trans("Stocks"), $help_url, '', 0, 0, '', '', '', 'mod-product page-stock');
 
 print load_fiche_titre($langs->trans("StocksArea"), '', 'stock');
 
@@ -59,15 +69,14 @@ print load_fiche_titre($langs->trans("StocksArea"), '', 'stock');
 print '<div class="fichecenter"><div class="fichethirdleft">';
 
 
-if (!empty($conf->global->MAIN_SEARCH_FORM_ON_HOME_AREAS))     // This is useless due to the global search combo
-{
+if (getDolGlobalString('MAIN_SEARCH_FORM_ON_HOME_AREAS')) {     // This may be useless due to the global search combo
 	print '<form method="post" action="'.DOL_URL_ROOT.'/product/stock/list.php">';
 	print '<input type="hidden" name="token" value="'.newToken().'">';
 	print '<div class="div-table-responsive-no-min">';
 	print '<table class="noborder nohover centpercent">';
 	print "<tr class=\"liste_titre\">";
 	print '<td colspan="3">'.$langs->trans("Search").'</td></tr>';
-	print '<tr class="oddevene"><td>';
+	print '<tr class="oddeven"><td>';
 	print $langs->trans("Warehouse").':</td><td><input class="flat" type="text" size="18" name="sall"></td><td rowspan="2"><input type="submit" value="'.$langs->trans("Search").'" class="button"></td></tr>';
 	print "</table></div></form><br>";
 }
@@ -83,8 +92,7 @@ $sql .= $db->plimit($max + 1, 0);
 
 $result = $db->query($sql);
 
-if ($result)
-{
+if ($result) {
 	$num = $db->num_rows($result);
 
 	print '<div class="div-table-responsive-no-min">';
@@ -101,10 +109,8 @@ if ($result)
 	print '</tr>';
 
 	$i = 0;
-	if ($num)
-	{
-		while ($i < min($max, $num))
-		{
+	if ($num) {
+		while ($i < min($max, $num)) {
 			$objp = $db->fetch_object($result);
 
 			$warehouse->id = $objp->rowid;
@@ -137,53 +143,53 @@ if ($result)
 }
 
 
-//print '</td><td valign="top" width="70%" class="notopnoleftnoright">';
-print '</div><div class="fichetwothirdright"><div class="ficheaddleft">';
+print '</div><div class="fichetwothirdright">';
 
 
 // Latest movements
 $max = 10;
 $sql = "SELECT p.rowid, p.label as produit, p.tobatch, p.tosell, p.tobuy,";
 $sql .= " e.ref as warehouse_ref, e.rowid as warehouse_id, e.ref as warehouse_label, e.lieu, e.statut as warehouse_status,";
-$sql .= " m.value as qty, m.datem, m.batch, m.eatby, m.sellby";
+$sql .= " m.rowid as mid, m.value as qty, m.datem, m.batch, m.eatby, m.sellby";
 $sql .= " FROM ".MAIN_DB_PREFIX."entrepot as e";
 $sql .= ", ".MAIN_DB_PREFIX."stock_mouvement as m";
 $sql .= ", ".MAIN_DB_PREFIX."product as p";
 $sql .= " WHERE m.fk_product = p.rowid";
 $sql .= " AND m.fk_entrepot = e.rowid";
 $sql .= " AND e.entity IN (".getEntity('stock').")";
-if (empty($conf->global->STOCK_SUPPORTS_SERVICES)) $sql .= " AND p.fk_product_type = ".Product::TYPE_PRODUCT;
+if (!getDolGlobalString('STOCK_SUPPORTS_SERVICES')) {
+	$sql .= " AND p.fk_product_type = ".Product::TYPE_PRODUCT;
+}
 $sql .= $db->order("datem", "DESC");
 $sql .= $db->plimit($max, 0);
 
 dol_syslog("Index:list stock movements", LOG_DEBUG);
 $resql = $db->query($sql);
-if ($resql)
-{
+if ($resql) {
 	$num = $db->num_rows($resql);
 
 	print '<div class="div-table-responsive-no-min">';
 	print '<table class="noborder centpercent">';
-	print "<tr class=\"liste_titre\">";
+	print '<tr class="liste_titre">';
 	print '<th>'.$langs->trans("LastMovements", min($num, $max)).'</th>';
 	print '<th>'.$langs->trans("Product").'</th>';
-	if (!empty($conf->productbatch->enabled))
-	{
+	if (isModEnabled('productbatch')) {
 		print '<th>'.$langs->trans("Batch").'</th>';
-		if (empty($conf->global->PRODUCT_DISABLE_SELLBY)) {
+		/*if (empty($conf->global->PRODUCT_DISABLE_SELLBY)) {
 			print '<th>'.$langs->trans("SellByDate").'</th>';
 		}
 		if (empty($conf->global->PRODUCT_DISABLE_EATBY)) {
 			print '<th>'.$langs->trans("EatByDate").'</th>';
-		}
+		}*/
 	}
 	print '<th>'.$langs->trans("Warehouse").'</th>';
 	print '<th class="right"><a class="notasortlink" href="'.DOL_URL_ROOT.'/product/stock/movement_list.php">'.$langs->trans("FullList").'</a></th>';
 	print "</tr>\n";
 
+	$tmplotstatic = new Productlot($db);
+
 	$i = 0;
-	while ($i < min($num, $max))
-	{
+	while ($i < min($num, $max)) {
 		$objp = $db->fetch_object($resql);
 
 		$producttmp->id = $objp->rowid;
@@ -198,26 +204,33 @@ if ($resql)
 		$warehouse->label = $objp->warehouse_label;
 		$warehouse->lieu = $objp->lieu;
 
+		$tmplotstatic->batch = $objp->batch;
+		$tmplotstatic->sellby = $objp->sellby;
+		$tmplotstatic->eatby = $objp->eatby;
+
 		print '<tr class="oddeven">';
-		print '<td class="nowraponall">'.dol_print_date($db->jdate($objp->datem), 'dayhour').'</td>';
-		print '<td class="tdoverflowmax200">';
+		print '<td class="nowraponall">'.img_picto($langs->trans("Ref").' '.$objp->mid, 'movement', 'class="pictofixedwidth"').dol_print_date($db->jdate($objp->datem), 'dayhour').'</td>';
+		print '<td class="tdoverflowmax150">';
 		print $producttmp->getNomUrl(1);
 		print "</td>\n";
-		if (!empty($conf->productbatch->enabled))
-		{
-			print '<td>'.$objp->batch.'</td>';
-			if (empty($conf->global->PRODUCT_DISABLE_SELLBY)) {
+		if (isModEnabled('productbatch')) {
+			print '<td>';
+			print $tmplotstatic->getNomUrl(0, 'nolink');
+			print '</td>';
+			/*if (empty($conf->global->PRODUCT_DISABLE_SELLBY)) {
 				print '<td>'.dol_print_date($db->jdate($objp->sellby), 'day').'</td>';
 			}
 			if (empty($conf->global->PRODUCT_DISABLE_EATBY)) {
 				print '<td>'.dol_print_date($db->jdate($objp->eatby), 'day').'</td>';
-			}
+			}*/
 		}
-		print '<td class="tdoverflowmax200">';
+		print '<td class="tdoverflowmax150">';
 		print $warehouse->getNomUrl(1);
 		print "</td>\n";
 		print '<td class="right">';
-		if ($objp->qty > 0) print '+';
+		if ($objp->qty > 0) {
+			print '+';
+		}
 		print $objp->qty.'</td>';
 		print "</tr>\n";
 		$i++;
@@ -230,8 +243,7 @@ if ($resql)
 	dol_print_error($db);
 }
 
-//print '</td></tr></table>';
-print '</div></div></div>';
+print '</div></div>';
 
 $parameters = array('user' => $user);
 $reshook = $hookmanager->executeHooks('dashboardWarehouse', $parameters, $object); // Note that $action and $object may have been modified by hook

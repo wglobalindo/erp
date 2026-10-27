@@ -1,6 +1,7 @@
 <?php
-/* Copyright (C) 2006-2018	Laurent Destailleur	<eldy@users.sourceforge.net>
- * Copyright (C) 2006-2018	Regis Houssin		<regis.houssin@inodbox.com>
+/* Copyright (C) 2006-2018	Laurent Destailleur		<eldy@users.sourceforge.net>
+ * Copyright (C) 2006-2021	Regis Houssin			<regis.houssin@inodbox.com>
+ * Copyright (C) 2024-2025  Frédéric France			<frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,13 +20,27 @@
 /**
  *		\file 		htdocs/admin/tools/dolibarr_export.php
  *		\ingroup	core
- *		\brief      Page to export database
+ *		\brief      Page to export database.
+ *				    See the file export_files.php for code to build a zip of documents
+ *					See the file export.php for code to build a dump file.
  */
 
+// Load Dolibarr environment
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.formfile.class.php';
+
+/**
+ * @var string $dolibarr_main_db_name
+ * @var string $dolibarr_main_db_user
+ * @var string $dolibarr_main_restrict_os_commands
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
 
 $langs->load("admin");
 
@@ -33,34 +48,45 @@ $action = GETPOST('action', 'aZ09');
 
 $sortfield = GETPOST('sortfield', 'aZ09comma');
 $sortorder = GETPOST('sortorder', 'aZ09comma');
-$page = GETPOSTISSET('pageplusone') ? (GETPOST('pageplusone') - 1) : GETPOST("page", 'int');
-if (!$sortorder) $sortorder = "DESC";
-if (!$sortfield) $sortfield = "date";
-if (empty($page) || $page == -1) { $page = 0; }
-$limit = GETPOST('limit', 'int') ?GETPOST('limit', 'int') : $conf->liste_limit;
+$page = GETPOSTISSET('pageplusone') ? (GETPOSTINT('pageplusone') - 1) : GETPOSTINT("page");
+if (!$sortorder) {
+	$sortorder = "DESC";
+}
+if (!$sortfield) {
+	$sortfield = "date";
+}
+if (empty($page) || $page == -1) {
+	$page = 0;
+}
+$limit = GETPOSTINT('limit') ? GETPOSTINT('limit') : $conf->liste_limit;
 $offset = $limit * $page;
 
-if (!$user->admin)
+if (!$user->admin) {
 	accessforbidden();
+}
 
 
 /*
  * Actions
  */
 
-if ($action == 'delete')
-{
-	if (preg_match('/^backup\//', GETPOST('urlfile', 'alpha')))
-	{
+if ($action == 'deletefile') {
+	if (preg_match('/^backup\//', GETPOST('urlfile', 'alpha'))) {
 		$file = $conf->admin->dir_output.'/backup/'.basename(GETPOST('urlfile', 'alpha'));
 		$ret = dol_delete_file($file, 1);
-		if ($ret) setEventMessages($langs->trans("FileWasRemoved", GETPOST('urlfile')), null, 'mesgs');
-		else setEventMessages($langs->trans("ErrorFailToDeleteFile", GETPOST('urlfile')), null, 'errors');
+		if ($ret) {
+			setEventMessages($langs->trans("FileWasRemoved", GETPOST('urlfile')), null, 'mesgs');
+		} else {
+			setEventMessages($langs->trans("ErrorFailToDeleteFile", GETPOST('urlfile')), null, 'errors');
+		}
 	} else {
 		$file = $conf->admin->dir_output.'/documents/'.basename(GETPOST('urlfile', 'alpha'));
 		$ret = dol_delete_file($file, 1);
-		if ($ret) setEventMessages($langs->trans("FileWasRemoved", GETPOST('urlfile')), null, 'mesgs');
-		else setEventMessages($langs->trans("ErrorFailToDeleteFile", GETPOST('urlfile')), null, 'errors');
+		if ($ret) {
+			setEventMessages($langs->trans("FileWasRemoved", GETPOST('urlfile')), null, 'mesgs');
+		} else {
+			setEventMessages($langs->trans("ErrorFailToDeleteFile", GETPOST('urlfile')), null, 'errors');
+		}
 	}
 	$action = '';
 }
@@ -78,7 +104,7 @@ $type = $db->type;
 //var_dump($db);
 
 $help_url = 'EN:Backups|FR:Sauvegardes|ES:Copias_de_seguridad';
-llxHeader('', '', $help_url);
+llxHeader('', '', $help_url, '', 0, 0, '', '', '', 'mod-admin page-tools_dolibarr_export');
 
 print '<script type="text/javascript">
 jQuery(document).ready(function() {';
@@ -123,21 +149,25 @@ print "</script>\n";
 $title = $langs->trans("Backup");
 
 print load_fiche_titre($title, '', 'title_setup');
-//print_barre_liste($langs->trans("Backup"), '', '', '', '', '', $langs->trans("BackupDesc",DOL_DATA_ROOT), 0, 0, 'title_setup');
 
-print '<div class="center opacitymedium">';
-print $langs->trans("BackupDesc", DOL_DATA_ROOT);
+print '<div class="center">';
+print $langs->trans("BackupDesc", 3);
 print '</div>';
 print '<br>';
 
 print "<!-- Dump of a server -->\n";
-print '<form method="post" action="export.php" name="dump">';
+print '<form method="post" action="'.DOL_URL_ROOT.'/admin/tools/export.php" name="dump" spellcheck="false">';
 print '<input type="hidden" name="token" value="'.newToken().'" />';
 print '<input type="hidden" name="export_type" value="server" />';
+print '<input type="hidden" name="page_y" value="" />';
+
 print '<fieldset id="fieldsetexport"><legend class="legendforfieldsetstep" style="font-size: 3em">1</legend>';
 
+print '<span class="opacitymedium">';
 print $langs->trans("BackupDesc3", $dolibarr_main_db_name).'<br>';
-//print $langs->trans("BackupDescY").'<br>';
+print $langs->trans("BackupDescY").'<br>';
+print '</span>';
+
 print '<br>';
 
 print '<div id="backupdatabaseleft" class="fichehalfleft" >';
@@ -146,16 +176,18 @@ $title = $langs->trans("BackupDumpWizard");
 
 print load_fiche_titre($title);
 
-print '<table width="100%" class="'.($useinecm ? 'nobordernopadding' : 'liste').' nohover">';
-print '<tr class="liste_titre">';
-print '<td class="liste_titre">';
-print $langs->trans("DatabaseName").' : <b>'.$dolibarr_main_db_name.'</b><br>';
-print '</td>';
-print '</tr>';
-print '<tr class="oddeven nohover"><td style="padding-left: 8px" class="nohover">';
-print '<table class="centpercent">';
+//print '<table class="liste nohover centpercent noborderbottom">';
+//print '<tr class="liste_titre">';
+//print '<td class="liste_titre">';
+print '<span class="opacitymedium">'.$langs->trans("DatabaseName").' : </span><b>'.$dolibarr_main_db_name.'</b><br><br>';
+//print '</td>';
+//print '</tr>';
+//print '<tr class="oddeven nohover"><td class="nohover">';
+
+print '<table class="centpercent noborderbottom">';
+
 print '<tr>';
-print '<td class="tdtop">';
+print '<td class="tdtop nopaddingleftimp">';
 
 print '<div id="div_container_exportoptions">';
 print '<fieldset id="exportoptions"><legend>'.$langs->trans("ExportMethod").'</legend>';
@@ -172,40 +204,64 @@ if (in_array($type, array('mysql', 'mysqli'))) {
 	print '<label for="radio_dump_postgresql">PostgreSQL Dump (pg_dump)</label>';
 	print '</div>';
 } else {
-	print 'No method available with database '.$label;
+	print 'No method available with database '.dol_escape_htmltag($label);
 }
 print '</fieldset>';
 print '</div>';
 
 print '</td>';
-print '<td class="tdtop">';
+print '</tr>';
+
+print '<tr>';
+print '<td class="tdtop nopaddingleftimp">';
+
+print '<div class="centpercent center margintoponly marginbottomonly">';
+print img_picto('', 'setup', 'class="pictofixedwidth"').'<a class="classlink" id="lnk">'.$langs->trans("ShowAdvancedOptions").'...</a>';
+print '</div>';
+
+print '<script type="text/javascript">
+jQuery(document).ready(function() {
+	jQuery("#lnk").click(function() {
+		console.log("We click on link");
+		hideoptions(this);
+	});
+});
+
+function hideoptions(domelem) {
+	const div = document.getElementById("div_container_sub_exportoptions");
+
+  	if (div.style.display === "none") {
+    	div.style.display = "block";
+		domelem.innerText="'.dol_escape_js($langs->transnoentitiesnoconv("HideAdvancedoptions")).'";
+  	} else {
+    	div.style.display = "none";
+		domelem.innerText="'.dol_escape_js($langs->transnoentitiesnoconv("ShowAdvancedOptions")).'...";
+	}
+}
+</script>';
 
 
-print '<div id="div_container_sub_exportoptions">';
+print '<div id="div_container_sub_exportoptions" style="display: none;">';
+
 if (in_array($type, array('mysql', 'mysqli'))) {
 	print "<!--  Fieldset mysqldump -->\n";
-	print '<fieldset id="mysql_options"><legend>'.$langs->trans("MySqlExportParameters").'</legend>';
+	print '<fieldset id="mysql_options">';
 
-	print '<div class="formelementrow">'.$langs->trans("FullPathToMysqldumpCommand");
-	if (empty($conf->global->SYSTEMTOOLS_MYSQLDUMP))
-	{
+	print '<fieldset class="formelementrow"><legend>'.$langs->trans("FullPathToMysqldumpCommand").'</legend>';
+	if (!getDolGlobalString('SYSTEMTOOLS_MYSQLDUMP')) {
 		$fullpathofmysqldump = $db->getPathOfDump();
 	} else {
-		$fullpathofmysqldump = $conf->global->SYSTEMTOOLS_MYSQLDUMP;
+		$fullpathofmysqldump = getDolGlobalString('SYSTEMTOOLS_MYSQLDUMP');
 	}
-	print '<br>';
-	print '<input type="text" name="mysqldump" style="width: 80%" value="'.$fullpathofmysqldump.'" /></div>';
+	print '<input type="text" name="mysqldump" style="width: 80%" value="'.$fullpathofmysqldump.'" spellcheck="false">';
+	print '</fieldset>';
 
 	print '<br>';
 	print '<fieldset><legend>'.$langs->trans("ExportOptions").'</legend>';
-	print '<div class="formelementrow">';
-	print '<input type="checkbox" name="use_transaction" value="yes" id="checkbox_use_transaction" />';
-	print '<label for="checkbox_use_transaction">'.$langs->trans("UseTransactionnalMode").'</label>';
-	print '</div>';
 
-	if (!empty($conf->global->MYSQL_OLD_OPTION_DISABLE_FK)) {
+	if (getDolGlobalString('MYSQL_OLD_OPTION_DISABLE_FK')) {
 		print '<div class="formelementrow">';
-		print '<input type="checkbox" name="disable_fk" value="yes" id="checkbox_disable_fk" checked />';
+		print '<input type="checkbox" name="disable_fk" value="yes" id="checkbox_disable_fk" checked>';
 		print '<label for="checkbox_disable_fk">'.$langs->trans("CommandsToDisableForeignKeysForImport").' '.img_info($langs->trans('CommandsToDisableForeignKeysForImportWarning')).'</label>';
 		print '</div>';
 	}
@@ -223,13 +279,40 @@ if (in_array($type, array('mysql', 'mysqli'))) {
 	print '<option value="ORACLE">ORACLE</option>';
 	print '<option value="POSTGRESQL">POSTGRESQL</option>';
 	print '</select>';
-	print '<br>';
+	print '<br><br>';
 
-	print '<input type="checkbox" name="use_mysql_quick_param" value="yes" id="checkbox_use_quick" />';
+	print '<div class="formelementrow">';
+	print '<input type="checkbox" name="use_transaction" value="yes" id="checkbox_use_transaction" checked="checked">';
+	print '<label for="checkbox_use_transaction">'.$langs->trans("UseTransactionnalMode").'</label>';
+	print '</div>';
+
+	print '<input type="checkbox" name="use_mysql_quick_param" value="yes" id="checkbox_use_quick" checked="checked" />';
 	print '<label for="checkbox_use_quick">';
 	print $form->textwithpicto($langs->trans('ExportUseMySQLQuickParameter'), $langs->trans('ExportUseMySQLQuickParameterHelp'));
 	print '</label>';
-	print '<br/>';
+	print '<br>';
+
+	print '<input type="checkbox" name="use_force" value="no" id="checkbox_use_force" />';
+	print '<label for="checkbox_use_force">';
+	print $form->textwithpicto($langs->trans('ExportUseForce'), $langs->trans('ExportUseForceHelp'));
+	print '</label>';
+	print '<br>';
+
+	$execmethod = 0;
+	if (getDolGlobalString('MAIN_EXEC_USE_POPEN')) {
+		$execmethod = getDolGlobalString('MAIN_EXEC_USE_POPEN');
+	}
+	if (empty($execmethod)) {
+		$execmethod = 1;
+	}
+	if ($execmethod == 1) {
+		// If we use the "exec" method for shell, we ask if we need to use the alternative low memory exec mode.
+		print '<input type="checkbox" name="lowmemorydump" value="1" id="lowmemorydump"'.((GETPOSTISSET('lowmemorydump') ? GETPOSTINT('lowmemorydump') : getDolGlobalInt('MAIN_LOW_MEMORY_DUMP')) ? ' checked="checked"' : '').'" />';
+		print '<label for="lowmemorydump">';
+		print $form->textwithpicto($langs->trans('ExportUseLowMemoryMode'), $langs->trans('ExportUseLowMemoryModeHelp'));
+		print '</label>';
+		print '<br>';
+	}
 
 	print '<!-- <input type="checkbox" name="drop_database" value="yes" id="checkbox_drop_database" />';
 	print '<label for="checkbox_drop_database">'.$langs->trans("AddDropDatabase").'</label>';
@@ -284,17 +367,20 @@ if (in_array($type, array('mysql', 'mysqli'))) {
 
 	print '</fieldset>';
 	print '</fieldset>';
+
+	// Export mysql bin
 	print "<!--  Fieldset mysql_nobin -->\n";
 	print '<fieldset id="mysql_nobin_options">';
-	print '<legend>'.$langs->trans("MySqlExportParameters").'</legend>';
+
 	print '<fieldset>';
 	print '<legend>'.$langs->trans("ExportOptions").'</legend>';
+
 	print '<div class="formelementrow">';
 	print '<input type="checkbox" name="nobin_use_transaction" value="yes" id="checkbox_use_transaction" />';
 	print '<label for="checkbox_use_transaction">'.$langs->trans("UseTransactionnalMode").'</label>';
-
 	print '</div>';
-	if (!empty($conf->global->MYSQL_OLD_OPTION_DISABLE_FK)) {
+
+	if (getDolGlobalString('MYSQL_OLD_OPTION_DISABLE_FK')) {
 		print '<div class="formelementrow">';
 		print '<input type="checkbox" name="nobin_disable_fk" value="yes" id="checkbox_disable_fk" checked />';
 		print '<label for="checkbox_disable_fk">'.$langs->trans("CommandsToDisableForeignKeysForImport").' '.img_info($langs->trans('CommandsToDisableForeignKeysForImportWarning')).'</label>';
@@ -335,16 +421,18 @@ if (in_array($type, array('mysql', 'mysqli'))) {
 
 if (in_array($type, array('pgsql'))) {
 	print "<!--  Fieldset pg_dump -->\n";
-	print '<fieldset id="postgresql_options"><legend>'.$langs->trans("PostgreSqlExportParameters").'</legend>';
+	print '<fieldset id="postgresql_options">';
 
-	print '<div class="formelementrow">'.$langs->trans("FullPathToPostgreSQLdumpCommand");
-	if (empty($conf->global->SYSTEMTOOLS_POSTGRESQLDUMP)) {
+
+	print '<fieldset class="formelementrow"><legend>'.$langs->trans("FullPathToPostgreSQLdumpCommand").'</legend>';
+	if (!getDolGlobalString('SYSTEMTOOLS_POSTGRESQLDUMP')) {
 		$fullpathofpgdump = $db->getPathOfDump();
 	} else {
-		$fullpathofpgdump = $conf->global->SYSTEMTOOLS_POSTGRESQLDUMP;
+		$fullpathofpgdump = getDolGlobalString('SYSTEMTOOLS_POSTGRESQLDUMP');
 	}
 	print '<br>';
-	print '<input type="text" name="postgresqldump" style="width: 80%" value="'.$fullpathofpgdump.'" /></div>';
+	print '<input type="text" name="postgresqldump" style="width: 80%" value="'.$fullpathofpgdump.'" />';
+	print '</fieldset>';
 
 	print '<br>';
 	print '<fieldset>';
@@ -385,10 +473,12 @@ print '</tr>';
 print '</table>';
 
 
+
+
 print '<!--<fieldset>';
 print '<legend>'.$langs->trans("Destination").'</legend> -->';
 print '<br>';
-print '<label for="filename_template">'.$langs->trans("FileNameToGenerate").'</label>';
+print '<label for="filename_template" class="line-height-large opacitymedium">'.$langs->trans("FileNameToGenerate").'</label>';
 print '<br>';
 $prefix = 'dump';
 $ext = '.sql';
@@ -404,7 +494,7 @@ if (in_array($type, array('pgsql'))) {
 	$prefix = 'pg_dump';
 	$ext = 'sql';
 }
-$file = $prefix.'_'.$dolibarr_main_db_name.'_'.dol_sanitizeFileName(DOL_VERSION).'_'.strftime("%Y%m%d%H%M").'.'.$ext;
+$file = $prefix.'_'.$dolibarr_main_db_name.'_'.dol_sanitizeFileName(DOL_VERSION).'_'.dol_print_date(dol_now('gmt'), "dayhourlogsmall", 'tzuser').'.'.$ext;
 print '<input type="text" name="filename_template" style="width: 90%" id="filename_template" value="'.$file.'" />';
 print '<br>';
 print '<br>';
@@ -424,9 +514,14 @@ if (in_array($type, array('mysql', 'mysqli'))) {
 	//     'label' => $langs->trans("FormatZip")
 	// );
 	$compression['bz'] = array(
-		'function' => 'bzopen',
-		'id' => 'radio_compression_bzip',
-		'label' => $langs->trans("Bzip2")
+	'function' => 'bzopen',
+	'id' => 'radio_compression_bzip',
+	'label' => $langs->trans("Bzip2")
+	);
+	$compression['zstd'] = array(
+		'function' => 'zstd_compress',
+		'id' => 'radio_compression_zstd',
+		'label' => $langs->trans("Zstd")
 	);
 	$compression['none'] = array(
 		'function' => '',
@@ -453,12 +548,13 @@ print "\n";
 print $langs->trans("Compression").': &nbsp; ';
 
 $i = 0;
-foreach ($compression as $key => $val)
-{
+foreach ($compression as $key => $val) {
 	if (!$val['function'] || function_exists($val['function'])) {
 		// Enabled export format
 		$checked = '';
-		if ($key == 'gz') $checked = ' checked';
+		if ($key == 'gz') {
+			$checked = ' checked';
+		}
 		print '<input type="radio" name="compression" value="'.$key.'" id="'.$val['id'].'"'.$checked.'>';
 		print ' <label for="'.$val['id'].'">'.$val['label'].'</label>';
 	} else {
@@ -479,12 +575,10 @@ print "<!--</fieldset>--> <!-- End destination -->\n";
 print '<br>';
 print '<div class="center">';
 print '<input type="submit" class="button reposition" value="'.$langs->trans("GenerateBackup").'" id="buttonGo">';
-print '<input type="hidden" name="page_y" value="'.GETPOST('page_y', 'int').'">';
 print '<br>';
 print '<br>';
 
-if (!empty($_SESSION["commandbackuplastdone"]))
-{
+if (!empty($_SESSION["commandbackuplastdone"])) {
 	print '<br><b>'.$langs->trans("RunCommandSummary").':</b><br>'."\n";
 	print '<textarea rows="'.ROWS_2.'" class="centpercent">'.$_SESSION["commandbackuplastdone"].'</textarea><br>'."\n";
 	print '<br>';
@@ -499,11 +593,10 @@ if (!empty($_SESSION["commandbackuplastdone"]))
 	$_SESSION["commandbackuptorun"] = '';
 	$_SESSION["commandbackupresult"] = '';
 }
-if (!empty($_SESSION["commandbackuptorun"]))
-{
-	print '<br><font class="warning">'.$langs->trans("YouMustRunCommandFromCommandLineAfterLoginToUser", $dolibarr_main_db_user, $dolibarr_main_db_user).':</font><br>'."\n";
+if (!empty($_SESSION["commandbackuptorun"])) {
+	print '<br><span class="warning">'.$langs->trans("YouMustRunCommandFromCommandLineAfterLoginToUser", $dolibarr_main_db_user, $dolibarr_main_db_user).':</span><br>'."\n";
 	print '<textarea id="commandbackuptoruntext" rows="'.ROWS_2.'" class="centpercent">'.$_SESSION["commandbackuptorun"].'</textarea><br>'."\n";
-	print ajax_autoselect("commandbackuptoruntext", 0);
+	print ajax_autoselect("commandbackuptoruntext", '');
 	print '<br>';
 
 	//print $paramclear;
@@ -515,47 +608,48 @@ if (!empty($_SESSION["commandbackuptorun"]))
 
 print "</div> <!-- end div center button -->\n";
 
-print '</td></tr>';
-print '</table>';
+//print '</td></tr>';
+//print '</table>';
 
 print "</div> 	<!-- end div fichehalfleft -->\n";
 
 
-print '<div id="backupdatabaseright" class="fichehalfright" style="height:480px; overflow: auto;">';
-print '<div class="ficheaddleft">';
+print '<div id="backupdatabaseright" class="fichehalfright">';
 
-$filearray = dol_dir_list($conf->admin->dir_output.'/backup', 'files', 0, '', '', $sortfield, (strtolower($sortorder) == 'asc' ?SORT_ASC:SORT_DESC), 1);
-$result = $formfile->list_of_documents($filearray, null, 'systemtools', '', 1, 'backup/', 1, 0, $langs->trans("NoBackupFileAvailable"), 0, $langs->trans("PreviousDumpFiles"));
+$filearray = dol_dir_list($conf->admin->dir_output.'/backup', 'files', 0, '', '', $sortfield, (strtolower($sortorder) == 'asc' ? SORT_ASC : SORT_DESC), 1);
+$result = $formfile->list_of_documents($filearray, null, 'systemtools', '', 1, 'backup/', 1, 3, $langs->trans("NoBackupFileAvailable"), 0, $langs->trans("PreviousDumpFiles"), '', 0, -1, '', '', 'ASC', 1, 0, -1, 'style="height:250px; overflow: auto;"');
 print '<br>';
 
-print '</div>';
 print '</div>';
 print '</form>';
 print '</fieldset>';
 
 
+$title = $langs->trans("BackupZipWizard");
 
 print "<br>\n";
 print "<!-- Dump of a server -->\n";
 
-print '<form method="post" action="export_files.php" name="dump">';
+print '<form method="post" action="'.DOL_URL_ROOT.'/admin/tools/export_files.php" name="dump" spellcheck="false">';
 print '<input type="hidden" name="token" value="'.newToken().'" />';
 print '<input type="hidden" name="export_type" value="server" />';
 print '<input type="hidden" name="page_y" value="" />';
 
 print '<fieldset><legend class="legendforfieldsetstep" style="font-size: 3em">2</legend>';
 
+print '<span class="opacitymedium">';
 print $langs->trans("BackupDesc2", DOL_DATA_ROOT).'<br>';
 print $langs->trans("BackupDescX").'<br><br>';
+print '</span>';
 
 print '<div id="backupfilesleft" class="fichehalfleft">';
 
-print load_fiche_titre($title ? $title : $langs->trans("BackupZipWizard"));
+print load_fiche_titre($title);
 
-print '<label for="zipfilename_template">'.$langs->trans("FileNameToGenerate").'</label><br>';
+print '<label for="zipfilename_template" class="line-height-large paddingbottom opacitymedium">'.$langs->trans("FileNameToGenerate").'</label><br>';
 $prefix = 'documents';
 $ext = 'zip';
-$file = $prefix.'_'.$dolibarr_main_db_name.'_'.dol_sanitizeFileName(DOL_VERSION).'_'.strftime("%Y%m%d%H%M");
+$file = $prefix.'_'.$dolibarr_main_db_name.'_'.dol_sanitizeFileName(DOL_VERSION).'_'.dol_print_date(dol_now('gmt'), "dayhourlogsmall", 'tzuser');
 print '<input type="text" name="zipfilename_template" style="width: 90%" id="zipfilename_template" value="'.$file.'" /> <br>';
 print '<br>';
 
@@ -570,23 +664,45 @@ $filecompression = $compression;
 unset($filecompression['none']);
 $filecompression['zip'] = array('function' => 'dol_compress_dir', 'id' => 'radio_compression_zip', 'label' => $langs->trans("FormatZip"));
 
+// The gz, bz and zstd formats are built by export_files.php with OS commands (tar then a compressor). When
+// $dolibarr_main_restrict_os_commands is set (default since 24.0.1), Utils::executeCLI() refuses any command not in
+// the list, so a format whose commands are not allowed must not be offered.
+$oscommandsforformat = array('gz' => array('tar', 'gzip'), 'bz' => array('tar', 'bzip2'), 'zstd' => array('tar', 'zstd'));
+$arrayofallowedcommand = array();
+if (!empty($dolibarr_main_restrict_os_commands)) {
+	$arrayofallowedcommand = array_map('trim', explode(',', $dolibarr_main_restrict_os_commands));
+}
+$disabledbyrestriction = array();
+foreach ($oscommandsforformat as $key => $commands) {
+	if (!empty($arrayofallowedcommand) && array_diff($commands, $arrayofallowedcommand)) {
+		$disabledbyrestriction[$key] = implode(', ', array_diff($commands, $arrayofallowedcommand));
+	}
+}
+$defaultcompression = empty($disabledbyrestriction['gz']) ? 'gz' : 'zip';
+
 $i = 0;
-foreach ($filecompression as $key => $val)
-{
-	if (!$val['function'] || function_exists($val['function']))	// Enabled export format
-	{
+foreach ($filecompression as $key => $val) {
+	if ((!$val['function'] || function_exists($val['function'])) && empty($disabledbyrestriction[$key])) {	// Enabled export format
 		$checked = '';
-		if ($key == 'gz') $checked = ' checked';
-		print '<input type="radio" name="compression" value="'.$key.'" id="'.$val['id'].'"'.$checked.'>';
-		print ' <label for="'.$val['id'].'">'.$val['label'].'</label>';
-	} else // Disabled export format
-	{
-		print '<input type="radio" name="compression" value="'.$key.'" id="'.$val['id'].'" disabled>';
-		print ' <label for="'.$val['id'].'">'.$val['label'].'</label>';
-		print ' <span class="opacitymedium">('.$langs->trans("NotAvailable").')</span>';
+		if ($key == $defaultcompression) {
+			$checked = ' checked';
+		}
+		print '<input type="radio" name="compression" value="'.$key.'" id="'.$val['id'].'2"'.$checked.'>';
+		print ' <label for="'.$val['id'].'2">'.$val['label'].'</label>';
+	} else { // Disabled export format
+		print '<input type="radio" name="compression" value="'.$key.'" id="'.$val['id'].'2" disabled>';
+		print ' <label for="'.$val['id'].'2">'.$val['label'].'</label>';
+		if (!empty($disabledbyrestriction[$key])) {
+			print ' <span class="opacitymedium">('.$langs->trans("NotAvailableCommandNotAllowed", $disabledbyrestriction[$key]).')</span>';
+		} else {
+			print ' <span class="opacitymedium">('.$langs->trans("NotAvailable").')</span>';
+		}
 	}
 	print ' &nbsp; &nbsp; ';
 	$i++;
+}
+if (!empty($disabledbyrestriction)) {
+	print '<br><span class="opacitymedium small">'.$langs->trans("RestrictOsCommandsHelp", 'dolibarr_main_restrict_os_commands').'</span>';
 }
 
 print '</div>';
@@ -600,18 +716,46 @@ print '</div>';
 
 print '</div>';
 
-print '<div id="backupdatabaseright" class="fichehalfright" style="height:480px; overflow: auto;">';
-print '<div class="ficheaddleft">';
+print '<div id="backupfileright" class="fichehalfright">';
 
-$filearray = dol_dir_list($conf->admin->dir_output.'/documents', 'files', 0, '', '', $sortfield, (strtolower($sortorder) == 'asc' ?SORT_ASC:SORT_DESC), 1);
-$result = $formfile->list_of_documents($filearray, null, 'systemtools', '', 1, 'documents/', 1, 0, $langs->trans("NoBackupFileAvailable"), 0, $langs->trans("PreviousArchiveFiles"));
+$filearray = dol_dir_list($conf->admin->dir_output.'/documents', 'files', 0, '', '', $sortfield, (strtolower($sortorder) == 'asc' ? SORT_ASC : SORT_DESC), 1);
+$result = $formfile->list_of_documents($filearray, null, 'systemtools', '', 1, 'documents/', 1, 3, $langs->trans("NoBackupFileAvailable"), 0, $langs->trans("PreviousArchiveFiles"), '', 0, -1, '', '', 'ASC', 1, 0, -1, 'style="height:250px; overflow: auto;"');
 print '<br>';
 
-print '</div>';
 print '</div>';
 
 print '</fieldset>';
 print '</form>';
+
+print '<br>';
+
+
+print "<br>\n";
+print "<!-- Save setup conf -->\n";
+
+print '<fieldset><legend class="legendforfieldsetstep" style="font-size: 3em">3</legend>';
+
+print '<br>';
+
+print '<span class="opacitymedium">';
+print $langs->trans("BackupDesc4", 'dolibarr_main_dolcrypt_key '.$langs->transnoentitiesnoconv("or").' dolibarr_main_instance_unique_id').'<br>';
+print '</span>';
+
+print '<br>';
+
+print '<div id="backupfileright">';
+
+print $langs->trans("SeeValueIntoConfPhp").'<br>';
+print $langs->trans("SeeValueIntoConfPhp2");
+print '<br>';
+
+print '<br>';
+
+print '</div>';
+
+print '</fieldset>';
+
+print '<br><br>';
 
 // End of page
 llxFooter();

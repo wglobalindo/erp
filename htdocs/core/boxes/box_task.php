@@ -1,6 +1,7 @@
 <?php
 /* Copyright (C) 2012-2018  Charlene BENKE 	<charlie@patas-monkey.com>
- * Copyright (C) 2015-2020  Frederic France      <frederic.france@netlogic.fr>
+ * Copyright (C) 2015-2024  Frédéric France      <frederic.france@free.fr>
+ * Copyright (C) 2024-2026	MDW							<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,20 +34,13 @@ class box_task extends ModeleBoxes
 {
 	public $boxcode = "projettask";
 	public $boximg = "object_projecttask";
-	public $boxlabel;
-	public $depends = array("projet");
-
 	/**
-	 * @var DoliDB Database handler.
+	 * @var string
 	 */
-	public $db;
+	public $boxlabel;
+	public $depends = array("project");
 
-	public $param;
-	public $enabled = 1; // enable because fixed ;-).
-
-	public $info_box_head = array();
-	public $info_box_contents = array();
-
+	public $enabled = 1;
 
 	/**
 	 *  Constructor
@@ -54,9 +48,9 @@ class box_task extends ModeleBoxes
 	 *  @param  DoliDB  $db         Database handler
 	 *  @param  string  $param      More parameters
 	 */
-	public function __construct($db, $param = '')
+	public function __construct($db, $param = '')  // @phpstan-ignore constructor.unusedParameter
 	{
-		global $conf, $user, $langs;
+		global $user, $langs;
 
 		// Load translation files required by the page
 		$langs->loadLangs(array('boxes', 'projects'));
@@ -64,7 +58,7 @@ class box_task extends ModeleBoxes
 		$this->boxlabel = "Tasks";
 		$this->db = $db;
 
-		$this->hidden = (!empty($conf->global->PROJECT_HIDE_TASKS) || !($user->rights->projet->lire));
+		$this->hidden = (getDolGlobalString('PROJECT_HIDE_TASKS') || !$user->hasRight('projet', 'lire'));
 	}
 
 	/**
@@ -84,7 +78,7 @@ class box_task extends ModeleBoxes
 		$projectstatic = new Project($this->db);
 		$taskstatic = new Task($this->db);
 		$form = new Form($this->db);
-		$cookie_name = 'DOLUSERCOOKIE_boxfilter_task';
+		$cookie_name = 'DOLUSER_boxfilter_task';
 		$boxcontent = '';
 		$socid = $user->socid;
 
@@ -106,27 +100,27 @@ class box_task extends ModeleBoxes
 
 		$this->info_box_head = array(
 			'text' => $textHead,
-			'limit'=> dol_strlen($textHead),
-			'sublink'=>'',
-			'subtext'=>$langs->trans("Filter"),
-			'subpicto'=>'filter.png',
-			'subclass'=>'linkobject boxfilter',
-			'target'=>'none'	// Set '' to get target="_blank"
+			'limit' => dol_strlen($textHead),
+			'sublink' => '',
+			'subtext' => $langs->trans("Filter"),
+			'subpicto' => 'filter.png',
+			'subclass' => 'linkobject boxfilter',
+			'target' => 'none'	// Set '' to get target="_blank"
 		);
 
 		// list the summary of the orders
-		if ($user->rights->projet->lire) {
+		if ($user->hasRight('projet', 'lire')) {
 			$boxcontent .= '<div id="ancor-idfilter'.$this->boxcode.'" style="display: block; position: absolute; margin-top: -100px"></div>'."\n";
 			$boxcontent .= '<div id="idfilter'.$this->boxcode.'" class="center" >'."\n";
 			$boxcontent .= '<form class="flat " method="POST" action="'.$_SERVER["PHP_SELF"].'#ancor-idfilter'.$this->boxcode.'">'."\n";
 			$boxcontent .= '<input type="hidden" name="token" value="'.newToken().'">'."\n";
 			$selectArray = array('all' => $langs->trans("NoFilter"), 'im_task_contact' => $langs->trans("WhichIamLinkedTo"), 'im_project_contact' => $langs->trans("WhichIamLinkedToProject"));
 			$boxcontent .= $form->selectArray($cookie_name, $selectArray, $filterValue);
-			$boxcontent .= '<button type="submit" class="button buttongen">'.$langs->trans("Refresh").'</button>';
+			$boxcontent .= '<button type="submit" class="button buttongen button-save">'.$langs->trans("Refresh").'</button>';
 			$boxcontent .= '</form>'."\n";
 			$boxcontent .= '</div>'."\n";
 			if (!empty($conf->use_javascript_ajax)) {
-				$boxcontent .= '<script type="text/javascript" language="javascript">
+				$boxcontent .= '<script nonce="'.getNonce().'" type="text/javascript">
 						jQuery(document).ready(function() {
 							jQuery("#idsubimg'.$this->boxcode.'").click(function() {
 								jQuery(".showiffilter'.$this->boxcode.'").toggle();
@@ -134,7 +128,7 @@ class box_task extends ModeleBoxes
 						});
 						</script>';
 				// set cookie by js
-				$boxcontent .= '<script>date = new Date(); date.setTime(date.getTime()+(30*86400000)); document.cookie = "'.$cookie_name.'='.$filterValue.'; expires= " + date.toGMTString() + "; path=/ "; </script>';
+				$boxcontent .= '<script nonce="'.getNonce().'">date = new Date(); date.setTime(date.getTime()+(30*86400000)); document.cookie = "'.$cookie_name.'='.$filterValue.'; expires= " + date.toGMTString() + "; path=/ ; SameSite=Lax"; </script>';
 			}
 			$this->info_box_contents[0][] = array(
 				'tr' => 'class="nohover showiffilter'.$this->boxcode.' hideobject"',
@@ -145,10 +139,12 @@ class box_task extends ModeleBoxes
 
 			// Get list of project id allowed to user (in a string list separated by coma)
 			$projectsListId = '';
-			if (!$user->rights->projet->all->lire) $projectsListId = $projectstatic->getProjectsAuthorizedForUser($user, 0, 1, $socid);
+			if (!$user->hasRight('projet', 'all', 'lire')) {
+				$projectsListId = $projectstatic->getProjectsAuthorizedForUser($user, 0, 1, $socid);
+			}
 
 			$sql = "SELECT pt.rowid, pt.ref, pt.fk_projet, pt.fk_task_parent, pt.datec, pt.dateo, pt.datee, pt.datev, pt.label, pt.description, pt.duration_effective, pt.planned_workload, pt.progress";
-			$sql .= ", p.rowid project_id, p.ref project_ref, p.title project_title";
+			$sql .= ", p.rowid project_id, p.ref project_ref, p.title project_title, p.fk_statut";
 
 			$sql .= " FROM ".MAIN_DB_PREFIX."projet_task as pt";
 			$sql .= " JOIN ".MAIN_DB_PREFIX."projet as p ON (pt.fk_projet = p.rowid)";
@@ -162,11 +158,13 @@ class box_task extends ModeleBoxes
 			}
 
 			$sql .= " WHERE ";
-			$sql .= " pt.entity = ".$conf->entity;
+			$sql .= " pt.entity = ".((int) $conf->entity);
 			$sql .= " AND p.fk_statut = ".Project::STATUS_VALIDATED;
 			$sql .= " AND (pt.progress < 100 OR pt.progress IS NULL ) "; // 100% is done and not displayed
 			$sql .= " AND p.usage_task = 1 ";
-			if (!$user->rights->projet->all->lire) $sql .= " AND p.rowid IN (".$projectsListId.")"; // public and assigned to, or restricted to company for external users
+			if (!$user->hasRight('projet', 'all', 'lire')) {
+				$sql .= " AND p.rowid IN (".$this->db->sanitize($projectsListId).")"; // public and assigned to, or restricted to company for external users
+			}
 
 			$sql .= " ORDER BY pt.datee ASC, pt.dateo ASC";
 			$sql .= $this->db->plimit($max, 0);
@@ -180,7 +178,7 @@ class box_task extends ModeleBoxes
 					$taskstatic->ref = $objp->ref;
 					$taskstatic->label = $objp->label;
 					$taskstatic->progress = $objp->progress;
-					$taskstatic->fk_statut = $objp->fk_statut;
+					$taskstatic->status = $objp->fk_statut;
 					$taskstatic->date_end = $this->db->jdate($objp->datee);
 					$taskstatic->planned_workload = $objp->planned_workload;
 					$taskstatic->duration_effective = $objp->duration_effective;
@@ -205,12 +203,14 @@ class box_task extends ModeleBoxes
 		}
 	}
 
+
+
 	/**
-	 *	Method to show box
+	 *	Method to show box.  Called when the box needs to be displayed.
 	 *
-	 *	@param	array	$head       Array with properties of box title
-	 *	@param  array	$contents   Array with properties of box lines
-	 *  @param	int		$nooutput	No print, only return string
+	 *	@param	?array<array{text?:string,sublink?:string,subtext?:string,subpicto?:?string,picto?:string,nbcol?:int,limit?:int,subclass?:string,graph?:int<0,1>,target?:string}>   $head       Array with properties of box title
+	 *	@param	?array<array{tr?:string,td?:string,target?:string,text?:string,text2?:string,textnoformat?:string,tooltip?:string,logo?:string,url?:string,maxlength?:int,asis?:int<0,1>}>   $contents   Array with properties of box lines
+	 *	@param	int<0,1>	$nooutput	No print, only return string
 	 *	@return	string
 	 */
 	public function showBox($head = null, $contents = null, $nooutput = 0)

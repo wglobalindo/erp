@@ -1,7 +1,8 @@
 <?php
 /* Copyright (C) 2014-2016	Alexandre Spangaro	<aspangaro@open-dsi.fr>
- * Copyright (C) 2015-2020	Frederic France     <frederic.france@netlogic.fr>
+ * Copyright (C) 2015-2024  Frédéric France     <frederic.france@free.fr>
  * Copyright (C) 2020       Maxime DEMAREST     <maxime@indelog.fr>
+ * Copyright (C) 2024-2025	MDW					<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,8 +28,8 @@
 /**
  * Prepare array with list of tabs
  *
- * @param   Object	$object		Object related to tabs
- * @return  array				Array of tabs to show
+ * @param   Loan	$object		Object related to tabs
+ * @return	array<array{0:string,1:string,2:string}>	Array of tabs to show
  */
 function loan_prepare_head($object)
 {
@@ -51,7 +52,7 @@ function loan_prepare_head($object)
 	// Entries must be declared in modules descriptor with line
 	// $this->tabs = array('entity:+tabname:Title:@mymodule:/mymodule/mypage.php?id=__ID__');   to add new tab
 	// $this->tabs = array('entity:-tabname);   												to remove a tab
-	complete_head_from_modules($conf, $langs, $object, $head, $tab, 'loan');
+	complete_head_from_modules($conf, $langs, $object, $head, $tab, 'loan', 'add', 'core');
 
 	require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 	require_once DOL_DOCUMENT_ROOT.'/core/class/link.class.php';
@@ -60,15 +61,19 @@ function loan_prepare_head($object)
 	$nbLinks = Link::count($db, $object->element, $object->id);
 	$head[$tab][0] = DOL_URL_ROOT.'/loan/document.php?id='.$object->id;
 	$head[$tab][1] = $langs->trans("Documents");
-	if (($nbFiles + $nbLinks) > 0) $head[$tab][1] .= '<span class="badge marginleftonlyshort">'.($nbFiles + $nbLinks).'</span>';
+	if (($nbFiles + $nbLinks) > 0) {
+		$head[$tab][1] .= '<span class="badge marginleftonlyshort">'.($nbFiles + $nbLinks).'</span>';
+	}
 	$head[$tab][2] = 'documents';
 	$tab++;
 
-	if (empty($conf->global->MAIN_DISABLE_NOTES_TAB)) {
+	if (!getDolGlobalString('MAIN_DISABLE_NOTES_TAB')) {
 		$nbNote = (empty($object->note_private) ? 0 : 1) + (empty($object->note_public) ? 0 : 1);
 		$head[$tab][0] = DOL_URL_ROOT."/loan/note.php?id=".$object->id;
 		$head[$tab][1] = $langs->trans("Notes");
-		if ($nbNote > 0) $head[$tab][1] .= '<span class="badge marginleftonlyshort">'.$nbNote.'</span>';
+		if ($nbNote > 0) {
+			$head[$tab][1] .= '<span class="badge marginleftonlyshort">'.$nbNote.'</span>';
+		}
 		$head[$tab][2] = 'note';
 		$tab++;
 	}
@@ -78,6 +83,8 @@ function loan_prepare_head($object)
 	$head[$tab][2] = 'info';
 	$tab++;
 
+	complete_head_from_modules($conf, $langs, $object, $head, $tab, 'loan', 'add', 'external');
+
 	complete_head_from_modules($conf, $langs, $object, $head, $tab, 'loan', 'remove');
 
 	return $head;
@@ -86,50 +93,62 @@ function loan_prepare_head($object)
 /**
  * Calculate remaining loan mensuality and interests
  *
- * @param   int     $mens		Value of this mensuality (interests include, set 0 if we don't paid interests for this mensuality)
- * @param   float   $capital    Remaining capital for this mensuality
- * @param   float   $rate		Loan rate
- * @param   int     $echance	Actual loan term
- * @param   int   	$nbterm  	Total number of term for this loan
- * @return  array				Array with remaining capital, interest, and mensuality for each remaining terms
+ * @param   float   $mens				Value of this mensuality (interests include, set 0 if we don't paid interests for this mensuality)
+ * @param   float   $capital    		Remaining capital for this mensuality
+ * @param   float   $rate				Loan rate
+ * @param   int     $numactualloadterm	Actual loan term
+ * @param   int   	$nbterm  			Total number of term for this loan
+ * @return array<array{cap_rest:float,cap_rest_str:string,interet:float,interet_str:string,mens:string}>		Array with remaining capital, interest, and mensuality for each remaining terms
  */
-function loanCalcMonthlyPayment($mens, $capital, $rate, $echance, $nbterm)
+function loanCalcMonthlyPayment($mens, $capital, $rate, $numactualloadterm, $nbterm)
 {
 	global $conf, $db;
 	require_once DOL_DOCUMENT_ROOT.'/loan/class/loanschedule.class.php';
 	$object = new LoanSchedule($db);
 	$output = array();
 
+	// Sanitize data in case of
+	$mens = price2num($mens);
+	$capital = price2num($capital);
+	$rate = price2num($rate);
+	$numactualloadterm = ((int) $numactualloadterm);
+	$nbterm = ((int) $nbterm);
+
 	// If mensuality is 0 we don't pay interests and remaining capital not modified
 	if ($mens == 0) {
 		$int = 0;
 		$cap_rest = $capital;
 	} else {
-		$int = ($capital * ($rate / 12));
+		$int = ((float) $capital * ((float) $rate / 12));
 		$int = round($int, 2, PHP_ROUND_HALF_UP);
-		$cap_rest = round($capital - ($mens - $int), 2, PHP_ROUND_HALF_UP);
+		$cap_rest = round((float) $capital - ((float) $mens - $int), 2, PHP_ROUND_HALF_UP);
 	}
-	$output[$echance] = array('cap_rest'=>$cap_rest, 'cap_rest_str'=>price($cap_rest, 0, '', 1, -1, -1, $conf->currency), 'interet'=>$int, 'interet_str'=>price($int, 0, '', 1, -1, -1, $conf->currency), 'mens'=>$mens);
+	$output[$numactualloadterm] = array(
+		'cap_rest' => $cap_rest,
+		'cap_rest_str' => price($cap_rest, 0, '', 1, -1, -1, $conf->currency),
+		'interet' => $int,
+		'interet_str' => price($int, 0, '', 1, -1, -1, $conf->currency),
+		'mens' => price($mens),
+	);
 
-	$echance++;
+	$numactualloadterm++;
 	$capital = $cap_rest;
-	while ($echance <= $nbterm) {
-		$mens = round($object->calcMonthlyPayments($capital, $rate, $nbterm - $echance + 1), 2, PHP_ROUND_HALF_UP);
+	while ($numactualloadterm <= $nbterm) {
+		$mens = round($object->calcMonthlyPayments($capital, (float) $rate, $nbterm - $numactualloadterm + 1), 2, PHP_ROUND_HALF_UP);
 
-		$int = ($capital * ($rate / 12));
+		$int = ($capital * ((float) $rate / 12));
 		$int = round($int, 2, PHP_ROUND_HALF_UP);
 		$cap_rest = round($capital - ($mens - $int), 2, PHP_ROUND_HALF_UP);
 
-		$output[$echance] = array(
+		$output[$numactualloadterm] = array(
 			'cap_rest' => $cap_rest,
 			'cap_rest_str' => price($cap_rest, 0, '', 1, -1, -1, $conf->currency),
 			'interet' => $int,
 			'interet_str' => price($int, 0, '', 1, -1, -1, $conf->currency),
-			'mens' => $mens,
+			'mens' => price($mens),
 		);
-
 		$capital = $cap_rest;
-		$echance++;
+		$numactualloadterm++;
 	}
 
 	return $output;

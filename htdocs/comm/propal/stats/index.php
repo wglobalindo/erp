@@ -5,6 +5,8 @@
  * Copyright (C) 2012      Marcos García        <marcosgdf@gmail.com>
  * Copyright (C) 2015      Jean-François Ferry	<jfefe@aternatik.fr>
  * Copyright (C) 2020      Maxime DEMAREST      <maxime@indelog.fr>
+ * Copyright (C) 2024-2025	MDW					<mdeweerd@users.noreply.github.com>
+ * Copyright (C) 2024-2025  Frédéric France         <frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,7 +28,15 @@
  *		\brief      Page des stats propositions commerciales
  */
 
+// Load Dolibarr environment
 require '../../../main.inc.php';
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
 require_once DOL_DOCUMENT_ROOT.'/comm/propal/class/propalestats.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/dolgraph.class.php';
 require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
@@ -38,30 +48,42 @@ $WIDTH = DolGraph::getDefaultGraphSizeForStats('width');
 $HEIGHT = DolGraph::getDefaultGraphSizeForStats('height');
 
 $mode = GETPOSTISSET("mode") ? GETPOST("mode", 'aZ09') : 'customer';
-if ($mode == 'customer' && !$user->rights->propale->lire) accessforbidden();
-if ($mode == 'supplier' && !$user->rights->supplier_proposal->lire) accessforbidden();
+
+$hookmanager->initHooks(array('propalstats', 'globalcard'));
 
 $object_status = GETPOST('object_status', 'intcomma');
-$typent_id = GETPOST('typent_id', 'int');
-$categ_id = GETPOST('categ_id', 'categ_id');
+$typent_id = GETPOSTINT('typent_id');
+$categ_id = GETPOSTINT('categ_id');
+$select_categ_propal_id=GETPOST('select_categ_propal_id', 'array');
 
-$userid = GETPOST('userid', 'int');
-$socid = GETPOST('socid', 'int');
+$userid = GETPOSTINT('userid');
+$socid = GETPOSTINT('socid');
 // Security check
-if ($user->socid > 0)
-{
+if ($user->socid > 0) {
 	$action = '';
 	$socid = $user->socid;
 }
 
-$nowyear = strftime("%Y", dol_now());
-$year = GETPOST('year') > 0 ? GETPOST('year', 'int') : $nowyear;
-//$startyear=$year-2;
-$startyear = $year - 1;
+$parameters = array();
+$reshook = $hookmanager->executeHooks('doActions', $parameters, $object, $action); // Note that $action and $object may have been modified by some hooks
+if ($reshook < 0) {
+	setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
+}
+
+$nowyear = dol_print_date(dol_now('gmt'), "%Y", 'gmt');
+$year = GETPOST('year') > 0 ? GETPOSTINT('year') : $nowyear;
+$startyear = $year - (!getDolGlobalString('MAIN_STATS_GRAPHS_SHOW_N_YEARS') ? 2 : max(1, min(10, getDolGlobalString('MAIN_STATS_GRAPHS_SHOW_N_YEARS'))));
 $endyear = $year;
 
 // Load translation files required by the page
 $langs->loadLangs(array('orders', 'companies', 'other', 'suppliers', 'supplier_proposal'));
+
+if ($mode == 'customer' && !$user->hasRight('propal', 'lire')) {
+	accessforbidden();
+}
+if ($mode == 'supplier' && !$user->hasRight('supplier_proposal', 'lire')) {
+	accessforbidden();
+}
 
 
 /*
@@ -75,41 +97,86 @@ $formother = new FormOther($db);
 
 $langs->loadLangs(array('propal', 'other', 'companies'));
 
-if ($mode == 'customer')
-{
-	$picto = 'propal';
-	$title = $langs->trans("ProposalsStatistics");
-	$dir = $conf->propale->dir_temp;
-	$cat_type = Categorie::TYPE_CUSTOMER;
-	$cat_label = $langs->trans("Category").' '.lcfirst($langs->trans("Customer"));
-}
-if ($mode == 'supplier')
-{
+$picto = 'propal';
+$title = $langs->trans('Proposals');
+$modheader = 'propal';
+
+$dir = $conf->propal->dir_temp;
+$cat_type = Categorie::TYPE_CUSTOMER;
+$cat_label = $langs->trans("Category").' '.lcfirst($langs->trans("Customer"));
+
+if ($mode == 'supplier') {
 	$picto = 'supplier_proposal';
-	$title = $langs->trans("ProposalsStatisticsSuppliers");
+	$title = $langs->trans("SupplierProposals");
+	$modheader = 'supplier_proposal';
 	$dir = $conf->supplier_proposal->dir_temp;
 	$cat_type = Categorie::TYPE_SUPPLIER;
 	$cat_label = $langs->trans("Category").' '.lcfirst($langs->trans("Supplier"));
 }
 
-llxHeader('', $title);
+llxHeader('', $title, '', '', 0, 0, '', '', '', 'mod-'.$modheader.' page-stats');
 
-print load_fiche_titre($title, '', $picto);
+$page = 0;
+$param = '';
+$sortfield = '';
+$sortorder = '';
+$massactionbutton = '';
+$num = 0;
+$nbtotalofrecords = $langs->trans("Statistics");
+$limit = 0;
+
+$url = DOL_URL_ROOT.'/comm/propal/card.php?action=create';
+if (!empty($socid)) {
+	$url .= '&socid='.$socid;
+}
+
+$newcardbutton = '';
+if ($mode == 'supplier') {
+	$urlnew = DOL_URL_ROOT.'/supplier_proposal/card.php?action=create';
+	if (!empty($socid)) {
+		$urlnew .= '&socid='.$socid;
+	}
+	$newcardbutton .= dolGetButtonTitle($langs->trans('ViewList'), '', 'fa fa-bars imgforviewmode', DOL_URL_ROOT.'/supplier_proposal/list.php?mode=common', '', 1, array('morecss' => 'reposition'));
+	$newcardbutton .= dolGetButtonTitle($langs->trans('ViewKanban'), '', 'fa fa-th-list imgforviewmode', DOL_URL_ROOT.'/supplier_proposal/list.php?mode=kanban', '', 1, array('morecss' => 'reposition'));
+	$newcardbutton .= dolGetButtonTitle($langs->trans('Statistics'), '', 'fa fa-chart-bar imgforviewmode', DOL_URL_ROOT.'/comm/propal/stats/index.php?mode=supplier', '', 2, array('morecss' => 'reposition'));
+	$newcardbutton .= dolGetButtonTitleSeparator();
+	$newcardbutton .= dolGetButtonTitle($langs->trans('NewAskPrice'), '', 'fa fa-plus-circle', $urlnew, '', $user->hasRight('supplier_proposal', 'creer'));
+} else {
+	$newcardbutton .= dolGetButtonTitle($langs->trans('ViewList'), '', 'fa fa-bars imgforviewmode', DOL_URL_ROOT . '/comm/propal/list.php?mode=common' . preg_replace('/(&|\?)*mode=[^&]+/', '', $param), '', 1, array('morecss' => 'reposition'));
+	$newcardbutton .= dolGetButtonTitle($langs->trans('ViewKanban'), '', 'fa fa-th-list imgforviewmode', DOL_URL_ROOT . '/comm/propal/list.php?mode=kanban' . preg_replace('/(&|\?)*mode=[^&]+/', '', $param), '', 1, array('morecss' => 'reposition'));
+	$newcardbutton .= dolGetButtonTitle($langs->trans('Statistics'), '', 'fa fa-chart-bar imgforviewmode', DOL_URL_ROOT . '/comm/propal/stats/index.php' . preg_replace('/(&|\?)*(mode|groupby)=[^&]+/', '', $param), '', 2, array('morecss' => 'reposition'));
+	$newcardbutton .= dolGetButtonTitleSeparator();
+	$newcardbutton .= dolGetButtonTitle($langs->trans('NewPropal'), '', 'fa fa-plus-circle', $url, '', $user->hasRight('propal', 'creer'));
+}
+
+print_barre_liste($title, $page, $_SERVER["PHP_SELF"], $param, $sortfield, $sortorder, $massactionbutton, $num, $nbtotalofrecords, $picto, 0, $newcardbutton, '', $limit, 0, 0, 1);
 
 
 dol_mkdir($dir);
 
 
 $stats = new PropaleStats($db, $socid, ($userid > 0 ? $userid : 0), $mode, ($typent_id > 0 ? $typent_id : 0), ($categ_id > 0 ? $categ_id : 0));
-if ($object_status != '' && $object_status >= 0) $stats->where .= ' AND p.fk_statut IN ('.$db->sanitize($db->escape($object_status)).')';
+if ($object_status != '' && $object_status >= 0) {
+	$stats->where .= ' AND p.fk_statut IN ('.$db->sanitize($object_status).')';
+}
 
 // Build graphic number of object
 $data = $stats->getNbByMonthWithPrevYear($endyear, $startyear);
 // $data = array(array('Lib',val1,val2,val3),...)
+if ($mode == 'customer') {
+	if (is_array($select_categ_propal_id) && !empty($select_categ_propal_id)) {
+		$stats->from .= ' LEFT JOIN '.MAIN_DB_PREFIX.'categorie_propal as cat ON (p.rowid = cat.fk_propal)';
+		$stats->where .= ' AND cat.fk_categorie IN ('.$db->sanitize(implode(',', $select_categ_propal_id)).')';
+	}
+}
+if ($mode == 'supplier') {
+	if (is_array($select_categ_propal_id) && !empty($select_categ_propal_id)) {
+		$stats->from .= ' LEFT JOIN '.MAIN_DB_PREFIX.'categorie_supplier_proposal as cat ON (p.rowid = cat.fk_supplier_proposal)';
+		$stats->where .= ' AND cat.fk_categorie IN ('.$db->sanitize(implode(',', $select_categ_propal_id)).')';
+	}
+}
 
-
-if (!$user->rights->societe->client->voir || $user->socid)
-{
+if (!$user->hasRight('societe', 'client', 'voir')) {
 	$filenamenb = $dir.'/proposalsnbinyear-'.$user->id.'-'.$year.'.png';
 	$fileurlnb = DOL_URL_ROOT.'/viewimage.php?modulepart=propalstats&file=proposalsnbinyear-'.$user->id.'-'.$year.'.png';
 } else {
@@ -119,12 +186,11 @@ if (!$user->rights->societe->client->voir || $user->socid)
 
 $px1 = new DolGraph();
 $mesg = $px1->isGraphKo();
-if (!$mesg)
-{
+if (!$mesg) {
 	$px1->SetData($data);
-	$i = $startyear; $legend = array();
-	while ($i <= $endyear)
-	{
+	$i = $startyear;
+	$legend = array();
+	while ($i <= $endyear) {
 		$legend[] = $i;
 		$i++;
 	}
@@ -146,8 +212,7 @@ if (!$mesg)
 $data = $stats->getAmountByMonthWithPrevYear($endyear, $startyear, 0);
 // $data = array(array('Lib',val1,val2,val3),...)
 
-if (!$user->rights->societe->client->voir || $user->socid)
-{
+if (!$user->hasRight('societe', 'client', 'voir')) {
 	$filenameamount = $dir.'/proposalsamountinyear-'.$user->id.'-'.$year.'.png';
 	$fileurlamount = DOL_URL_ROOT.'/viewimage.php?modulepart=propalstats&file=proposalsamountinyear-'.$user->id.'-'.$year.'.png';
 } else {
@@ -157,12 +222,11 @@ if (!$user->rights->societe->client->voir || $user->socid)
 
 $px2 = new DolGraph();
 $mesg = $px2->isGraphKo();
-if (!$mesg)
-{
+if (!$mesg) {
 	$px2->SetData($data);
-	$i = $startyear; $legend = array();
-	while ($i <= $endyear)
-	{
+	$i = $startyear;
+	$legend = array();
+	while ($i <= $endyear) {
 		$legend[] = $i;
 		$i++;
 	}
@@ -183,32 +247,38 @@ if (!$mesg)
 $data = $stats->getAverageByMonthWithPrevYear($endyear, $startyear);
 
 $fileurl_avg = '';
-if (!$user->rights->societe->client->voir || $user->socid)
-{
+if (!$user->hasRight('societe', 'client', 'voir')) {
 	$filename_avg = $dir.'/ordersaverage-'.$user->id.'-'.$year.'.png';
-	if ($mode == 'customer') $fileurl_avg = DOL_URL_ROOT.'/viewimage.php?modulepart=orderstats&file=ordersaverage-'.$user->id.'-'.$year.'.png';
-	if ($mode == 'supplier') $fileurl_avg = DOL_URL_ROOT.'/viewimage.php?modulepart=orderstatssupplier&file=ordersaverage-'.$user->id.'-'.$year.'.png';
+	if ($mode == 'customer') {
+		$fileurl_avg = DOL_URL_ROOT.'/viewimage.php?modulepart=orderstats&file=ordersaverage-'.$user->id.'-'.$year.'.png';
+	}
+	if ($mode == 'supplier') {
+		$fileurl_avg = DOL_URL_ROOT.'/viewimage.php?modulepart=orderstatssupplier&file=ordersaverage-'.$user->id.'-'.$year.'.png';
+	}
 } else {
 	$filename_avg = $dir.'/ordersaverage-'.$year.'.png';
-	if ($mode == 'customer') $fileurl_avg = DOL_URL_ROOT.'/viewimage.php?modulepart=orderstats&file=ordersaverage-'.$year.'.png';
-	if ($mode == 'supplier') $fileurl_avg = DOL_URL_ROOT.'/viewimage.php?modulepart=orderstatssupplier&file=ordersaverage-'.$year.'.png';
+	if ($mode == 'customer') {
+		$fileurl_avg = DOL_URL_ROOT.'/viewimage.php?modulepart=orderstats&file=ordersaverage-'.$year.'.png';
+	}
+	if ($mode == 'supplier') {
+		$fileurl_avg = DOL_URL_ROOT.'/viewimage.php?modulepart=orderstatssupplier&file=ordersaverage-'.$year.'.png';
+	}
 }
 
 $px3 = new DolGraph();
 $mesg = $px3->isGraphKo();
-if (!$mesg)
-{
+if (!$mesg) {
 	$px3->SetData($data);
-	$i = $startyear; $legend = array();
-	while ($i <= $endyear)
-	{
+	$i = $startyear;
+	$legend = array();
+	while ($i <= $endyear) {
 		$legend[] = $i;
 		$i++;
 	}
 	$px3->SetLegend($legend);
 	$px3->SetYLabel($langs->trans("AmountAverage"));
 	$px3->SetMaxValue($px3->GetCeilMaxValue());
-	$px3->SetMinValue($px3->GetFloorMinValue());
+	$px3->SetMinValue((int) $px3->GetFloorMinValue());
 	$px3->SetWidth($WIDTH);
 	$px3->SetHeight($HEIGHT);
 	$px3->SetShading(3);
@@ -228,7 +298,9 @@ foreach ($data as $val) {
 		$arrayyears[$val['year']] = $val['year'];
 	}
 }
-if (!count($arrayyears)) $arrayyears[$nowyear] = $nowyear;
+if (!count($arrayyears)) {
+	$arrayyears[$nowyear] = $nowyear;
+}
 
 
 $h = 0;
@@ -240,56 +312,82 @@ $h++;
 
 complete_head_from_modules($conf, $langs, null, $head, $h, 'propal_stats');
 
-print dol_get_fiche_head($head, 'byyear', $langs->trans("Statistics"), -1);
+print dol_get_fiche_head($head, 'byyear', '', -1);
 
 
 print '<div class="fichecenter"><div class="fichethirdleft">';
 
 
-//if (empty($socid))
-//{
-	// Show filter box
-	print '<form name="stats" method="POST" action="'.$_SERVER["PHP_SELF"].'">';
-	print '<input type="hidden" name="token" value="'.newToken().'">';
-	print '<input type="hidden" name="mode" value="'.$mode.'">';
+// Show filter box
+print '<form name="stats" method="POST" action="'.dolBuildUrl($_SERVER["PHP_SELF"]).'">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="mode" value="'.$mode.'">';
 
-	print '<table class="noborder centpercent">';
-	print '<tr class="liste_titre"><td class="liste_titre" colspan="2">'.$langs->trans("Filter").'</td></tr>';
-	// Company
-	print '<tr><td class="left">'.$langs->trans("ThirdParty").'</td><td class="left">';
-	$filter = 's.client IN (1,2,3)';
-	print $form->select_company($socid, 'socid', $filter, 1, 0, 0, array(), 0, '', 'style="width: 95%"');
-	print '</td></tr>';
-	// ThirdParty Type
-	print '<tr><td>'.$langs->trans("ThirdPartyType").'</td><td>';
-	$sortparam_typent = (empty($conf->global->SOCIETE_SORT_ON_TYPEENT) ? 'ASC' : $conf->global->SOCIETE_SORT_ON_TYPEENT); // NONE means we keep sort of original array, so we sort on position. ASC, means next function will sort on label.
-	print $form->selectarray("typent_id", $formcompany->typent_array(0), $typent_id, 0, 0, 0, '', 0, 0, 0, $sortparam_typent);
-	if ($user->admin) print ' '.info_admin($langs->trans("YouCanChangeValuesForThisListFromDictionarySetup"), 1);
-	print '</td></tr>';
-	// Category
+print '<table class="noborder centpercent">';
+print '<tr class="liste_titre"><td class="liste_titre" colspan="2">'.$langs->trans("Filter").'</td></tr>';
+// Company
+print '<tr><td class="left">'.$langs->trans("ThirdParty").'</td><td class="left">';
+print img_picto('', 'company', 'class="pictofixedwidth"');
+$filter = '(s.client:IN:1,2,3)';
+print $form->select_company($socid, 'socid', $filter, 1, 0, 0, array(), 0, 'widthcentpercentminusx maxwidth300', '');
+print '</td></tr>';
+// ThirdParty Type
+print '<tr><td>'.$langs->trans("ThirdPartyType").'</td><td>';
+$sortparam_typent = (!getDolGlobalString('SOCIETE_SORT_ON_TYPEENT') ? 'ASC' : $conf->global->SOCIETE_SORT_ON_TYPEENT); // NONE means we keep sort of original array, so we sort on position. ASC, means next function will sort on label.
+print $form->selectarray("typent_id", $formcompany->typent_array(0), $typent_id, 1, 0, 0, '', 0, 0, 0, $sortparam_typent, '', 1);
+if ($user->admin) {
+	print ' '.info_admin($langs->trans("YouCanChangeValuesForThisListFromDictionarySetup"), 1);
+}
+print '</td></tr>';
+// Category
+print '<tr><td>'.$cat_label.'</td><td>';
+print img_picto('', 'category', 'class="pictofixedwidth"');
+print $formother->select_categories($cat_type, $categ_id, 'categ_id', 0, 1, 'widthcentpercentminusx maxwidth300');
+print '</td></tr>';
+
+if (isModEnabled('category')) {
+	$cat_type = '';
+	$cat_label = '';
+	if ($mode == 'customer') {
+		$cat_type = Categorie::TYPE_PROPOSAL;
+		$cat_label = $langs->trans("Category").' '.lcfirst($langs->trans("Proposals"));
+	}
+	if ($mode == 'supplier') {
+		$cat_type = Categorie::TYPE_SUPPLIER_PROPOSAL;
+		$cat_label = $langs->trans("Category").' '.lcfirst($langs->trans("SupplierProposals"));
+	}
 	print '<tr><td>'.$cat_label.'</td><td>';
-	print $formother->select_categories($cat_type, $categ_id, 'categ_id', true);
+	$cate_arbo = $form->select_all_categories($cat_type, '', 'parent', 0, 0, 1);
+	print img_picto('', 'category', 'class="pictofixedwidth"');
+	print $form->multiselectarray('select_categ_propal_id', $cate_arbo, GETPOST('select_categ_propal_id', 'array'), 0, 0, 'widthcentpercentminusx maxwidth300');
+	//print $formother->select_categories($cat_type, $categ_id, 'categ_id', true);
 	print '</td></tr>';
-	// User
-	print '<tr><td class="left">'.$langs->trans("CreatedBy").'</td><td class="left">';
-	print $form->select_dolusers($userid, 'userid', 1, '', 0, '', '', 0, 0, 0, '', 0, '', 'maxwidth300');
-	print '</td></tr>';
-	// Status
-	print '<tr><td class="left">'.$langs->trans("Status").'</td><td class="left">';
-	$formpropal->selectProposalStatus(($object_status != '' ? $object_status : -1), 0, 0, 1, $mode, 'object_status');
-	print '</td></tr>';
-	// Year
-	print '<tr><td class="left">'.$langs->trans("Year").'</td><td class="left">';
-	if (!in_array($year, $arrayyears)) $arrayyears[$year] = $year;
-	if (!in_array($nowyear, $arrayyears)) $arrayyears[$nowyear] = $nowyear;
-	arsort($arrayyears);
-	print $form->selectarray('year', $arrayyears, $year, 0);
-	print '</td></tr>';
-	print '<tr><td align="center" colspan="2"><input type="submit" name="submit" class="button" value="'.$langs->trans("Refresh").'"></td></tr>';
-	print '</table>';
-	print '</form>';
-	print '<br><br>';
-//}
+}
+// User
+print '<tr><td>'.$langs->trans("CreatedBy").'</td><td>';
+print img_picto('', 'user', 'class="pictofixedwidth"');
+print $form->select_dolusers($userid, 'userid', 1, null, 0, '', '', '0', 0, 0, '', 0, '', 'widthcentpercentminusx maxwidth300');
+print '</td></tr>';
+// Status
+print '<tr><td>'.$langs->trans("Status").'</td><td>';
+$formpropal->selectProposalStatus(($object_status != '' ? $object_status : -1), 0, 0, 1, $mode, 'object_status');
+print '</td></tr>';
+// Year
+print '<tr><td>'.$langs->trans("Year").'</td><td>';
+if (!in_array($year, $arrayyears)) {
+	$arrayyears[$year] = $year;
+}
+if (!in_array($nowyear, $arrayyears)) {
+	$arrayyears[$nowyear] = $nowyear;
+}
+arsort($arrayyears);
+print img_picto('', 'calendar', 'class="pictofixedwidth"');
+print $form->selectarray('year', $arrayyears, $year, 0, 0, 0, '', 0, 0, 0, '', 'width75');
+print '</td></tr>';
+print '<tr><td align="center" colspan="2"><input type="submit" name="submit" class="button small" value="'.$langs->trans("Refresh").'"></td></tr>';
+print '</table>';
+print '</form>';
+print '<br><br>';
 
 print '<div class="div-table-responsive-no-min">';
 print '<table class="noborder centpercent">';
@@ -304,11 +402,9 @@ print '<td class="right">%</td>';
 print '</tr>';
 
 $oldyear = 0;
-foreach ($data as $val)
-{
+foreach ($data as $val) {
 	$year = $val['year'];
-	while (!empty($year) && $oldyear > $year + 1)
-	{	// If we have empty year
+	while (!empty($year) && $oldyear > (int) $year + 1) {	// If we have empty year
 		$oldyear--;
 
 		print '<tr class="oddeven" height="24">';
@@ -324,11 +420,11 @@ foreach ($data as $val)
 	print '<tr class="oddeven" height="24">';
 	print '<td align="center"><a href="'.$_SERVER["PHP_SELF"].'?year='.$year.($socid > 0 ? '&socid='.$socid : '').($userid > 0 ? '&userid='.$userid : '').'">'.$year.'</a></td>';
 	print '<td class="right">'.$val['nb'].'</td>';
-	print '<td class="right" style="'.(($val['nb_diff'] >= 0) ? 'color: green;' : 'color: red;').'">'.round($val['nb_diff']).'</td>';
+	print '<td class="right opacitylow" style="'.((!isset($val['nb_diff']) || $val['nb_diff'] >= 0) ? 'color: green;' : 'color: red;').'">'.(isset($val['nb_diff']) ? round($val['nb_diff']) : "0").'%</td>';
 	print '<td class="right">'.price(price2num($val['total'], 'MT'), 1).'</td>';
-	print '<td class="right" style="'.(($val['total_diff'] >= 0) ? 'color: green;' : 'color: red;').'">'.round($val['total_diff']).'</td>';
+	print '<td class="right opacitylow" style="'.((!isset($val['total_diff']) || $val['total_diff'] >= 0) ? 'color: green;' : 'color: red;').'">'.(isset($val['total_diff']) ? round($val['total_diff']) : "0").'%</td>';
 	print '<td class="right">'.price(price2num($val['avg'], 'MT'), 1).'</td>';
-	print '<td class="right" style="'.(($val['avg_diff'] >= 0) ? 'color: green;' : 'color: red;').'">'.round($val['avg_diff']).'</td>';
+	print '<td class="right opacitylow" style="'.((!isset($val['avg_diff']) || $val['avg_diff'] >= 0) ? 'color: green;' : 'color: red;').'">'.(isset($val['avg_diff']) ? round($val['avg_diff']) : "0").'%</td>';
 	print '</tr>';
 	$oldyear = $year;
 }
@@ -336,12 +432,14 @@ foreach ($data as $val)
 print '</table>';
 print '</div>';
 
-print '</div><div class="fichetwothirdright"><div class="ficheaddleft">';
+print '</div><div class="fichetwothirdright">';
 
 
 // Show graphs
 print '<table class="border centpercent"><tr class="pair nohover"><td align="center">';
-if ($mesg) { print $mesg; } else {
+if ($mesg) {
+	print $mesg;
+} else {
 	print $px1->show();
 	print "<br>\n";
 	print $px2->show();
@@ -351,8 +449,8 @@ if ($mesg) { print $mesg; } else {
 print '</td></tr></table>';
 
 
-print '</div></div></div>';
-print '<div style="clear:both"></div>';
+print '</div></div>';
+print '<div class="clearboth"></div>';
 
 
 print dol_get_fiche_end();

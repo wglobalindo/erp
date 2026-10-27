@@ -1,5 +1,6 @@
 <?php
 /* Copyright (C) 2019 Laurent Destailleur  <eldy@users.sourceforge.net>
+ * Copyright (C) 2024-2026	MDW							<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -47,13 +48,6 @@ class Comment extends CommonObject
 	public $description;
 
 	/**
-	 * Date modification record (tms)
-	 *
-	 * @var integer
-	 */
-	public $tms;
-
-	/**
 	 * Date creation record (datec)
 	 *
 	 * @var integer
@@ -71,21 +65,16 @@ class Comment extends CommonObject
 	public $fk_user_modif;
 
 	/**
-	 * @var int Entity
+	 * @var int 		Entity
 	 */
 	public $entity;
 
 	/**
-	 * @var string import key
+	 * @var string 		Import key
 	 */
 	public $import_key;
 
 	public $comments = array();
-
-	/**
-	 * @var Comment Object oldcopy
-	 */
-	public $oldcopy;
 
 
 	/**
@@ -104,7 +93,7 @@ class Comment extends CommonObject
 	 *
 	 *  @param	User	$user        	User that create
 	 *  @param 	int		$notrigger	    0=launch triggers after, 1=disable triggers
-	 *  @return int 		        	<0 if KO, Id of created object if OK
+	 *  @return int 		        	Return integer <0 if KO, Id of created object if OK
 	 */
 	public function create($user, $notrigger = 0)
 	{
@@ -113,7 +102,7 @@ class Comment extends CommonObject
 		$error = 0;
 
 		// Insert request
-		$sql = "INSERT INTO ".MAIN_DB_PREFIX.$this->table_element." (";
+		$sql = "INSERT INTO ".$this->db->prefix().$this->table_element." (";
 		$sql .= "description";
 		$sql .= ", datec";
 		$sql .= ", fk_element";
@@ -125,11 +114,11 @@ class Comment extends CommonObject
 		$sql .= ") VALUES (";
 		$sql .= "'".$this->db->escape($this->description)."'";
 		$sql .= ", ".($this->datec != '' ? "'".$this->db->idate($this->datec)."'" : 'null');
-		$sql .= ", '".(isset($this->fk_element) ? $this->fk_element : "null")."'";
+		$sql .= ", ".(isset($this->fk_element) ? ((int) $this->fk_element) : "null");
 		$sql .= ", '".$this->db->escape($this->element_type)."'";
-		$sql .= ", '".(isset($this->fk_user_author) ? $this->fk_user_author : "null")."'";
-		$sql .= ", ".$user->id."";
-		$sql .= ", ".(!empty($this->entity) ? $this->entity : '1');
+		$sql .= ", ".(isset($this->fk_user_author) ? ((int) $this->fk_user_author) : "null");
+		$sql .= ", ".((int) $user->id);
+		$sql .= ", ".(!empty($this->entity) ? ((int) $this->entity) : '1');
 		$sql .= ", ".(!empty($this->import_key) ? "'".$this->db->escape($this->import_key)."'" : "null");
 		$sql .= ")";
 
@@ -141,11 +130,12 @@ class Comment extends CommonObject
 		dol_syslog(get_class($this)."::create", LOG_DEBUG);
 		$resql = $this->db->query($sql);
 		if (!$resql) {
-			$error++; $this->errors[] = "Error ".$this->db->lasterror();
+			$error++;
+			$this->errors[] = "Error ".$this->db->lasterror();
 		}
 
 		if (!$error) {
-			$this->id = $this->db->last_insert_id(MAIN_DB_PREFIX.$this->table_element);
+			$this->id = $this->db->last_insert_id($this->db->prefix().$this->table_element);
 
 			if (!$notrigger) {
 				// Call trigger
@@ -176,8 +166,8 @@ class Comment extends CommonObject
 	 *  Load object in memory from database
 	 *
 	 *  @param	int		$id			Id object
-	 *  @param	int		$ref		ref object
-	 *  @return int 		        <0 if KO, 0 if not found, >0 if OK
+	 *  @param	string	$ref		ref object
+	 *  @return int 		        Return integer <0 if KO, 0 if not found, >0 if OK
 	 */
 	public function fetch($id, $ref = '')
 	{
@@ -194,7 +184,7 @@ class Comment extends CommonObject
 		$sql .= " c.fk_user_modif,";
 		$sql .= " c.entity,";
 		$sql .= " c.import_key";
-		$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as c";
+		$sql .= " FROM ".$this->db->prefix().$this->table_element." as c";
 		$sql .= " WHERE c.rowid = ".((int) $id);
 
 		dol_syslog(get_class($this)."::fetch", LOG_DEBUG);
@@ -236,7 +226,7 @@ class Comment extends CommonObject
 	 *
 	 *  @param	User	$user        	User that modify
 	 *  @param  int		$notrigger	    0=launch triggers after, 1=disable triggers
-	 *  @return int			         	<=0 if KO, >0 if OK
+	 *  @return int			         	Return integer <=0 if KO, >0 if OK
 	 */
 	public function update(User $user, $notrigger = 0)
 	{
@@ -245,7 +235,7 @@ class Comment extends CommonObject
 
 		// Clean parameters
 		if (isset($this->fk_element)) {
-			$this->fk_project = (int) trim($this->fk_element);
+			$this->fk_project = (int) trim((string) $this->fk_element);
 		}
 		if (isset($this->description)) {
 			$this->description = trim($this->description);
@@ -253,22 +243,23 @@ class Comment extends CommonObject
 
 
 		// Update request
-		$sql = "UPDATE ".MAIN_DB_PREFIX.$this->table_element." SET";
-		$sql .= " description=".(isset($this->description) ? "'".$this->db->escape($this->description)."'" : "null").",";
-		$sql .= " datec=".($this->datec != '' ? "'".$this->db->idate($this->datec)."'" : 'null').",";
-		$sql .= " fk_element=".(isset($this->fk_element) ? $this->fk_element : "null").",";
-		$sql .= " element_type='".$this->db->escape($this->element_type)."',";
-		$sql .= " fk_user_modif=".$user->id.",";
-		$sql .= " entity=".(!empty($this->entity) ? $this->entity : '1').",";
-		$sql .= " import_key=".(!empty($this->import_key) ? "'".$this->db->escape($this->import_key)."'" : "null");
-		$sql .= " WHERE rowid=".$this->id;
+		$sql = "UPDATE ".$this->db->prefix().$this->table_element." SET";
+		$sql .= " description = ".(isset($this->description) ? "'".$this->db->escape($this->description)."'" : "null").",";
+		$sql .= " datec = ".($this->datec != '' ? "'".$this->db->idate($this->datec)."'" : 'null').",";
+		$sql .= " fk_element = ".(isset($this->fk_element) ? ((int) $this->fk_element) : "null").",";
+		$sql .= " element_type = '".$this->db->escape($this->element_type)."',";
+		$sql .= " fk_user_modif = ".((int) $user->id).",";
+		$sql .= " entity = ".(!empty($this->entity) ? ((int) $this->entity) : '1').",";
+		$sql .= " import_key = ".(!empty($this->import_key) ? "'".$this->db->escape($this->import_key)."'" : "null");
+		$sql .= " WHERE rowid = ".((int) $this->id);
 
 		$this->db->begin();
 
 		dol_syslog(get_class($this)."::update", LOG_DEBUG);
 		$resql = $this->db->query($sql);
 		if (!$resql) {
-			$error++; $this->errors[] = "Error ".$this->db->lasterror();
+			$error++;
+			$this->errors[] = "Error ".$this->db->lasterror();
 		}
 
 		if (!$error) {
@@ -302,7 +293,7 @@ class Comment extends CommonObject
 	 *
 	 *	@param	User	$user        	User that delete
 	 *  @param  int		$notrigger	    0=launch triggers after, 1=disable triggers
-	 *	@return	int						<0 if KO, >0 if OK
+	 *	@return	int						Return integer <0 if KO, >0 if OK
 	 */
 	public function delete($user, $notrigger = 0)
 	{
@@ -313,12 +304,13 @@ class Comment extends CommonObject
 
 		$this->db->begin();
 
-		$sql = "DELETE FROM ".MAIN_DB_PREFIX.$this->table_element;
-		$sql .= " WHERE rowid=".$this->id;
+		$sql = "DELETE FROM ".$this->db->prefix().$this->table_element;
+		$sql .= " WHERE rowid=".((int) $this->id);
 
 		$resql = $this->db->query($sql);
 		if (!$resql) {
-			$error++; $this->errors[] = "Error ".$this->db->lasterror();
+			$error++;
+			$this->errors[] = "Error ".$this->db->lasterror();
 		}
 
 		if (!$error) {
@@ -348,23 +340,25 @@ class Comment extends CommonObject
 
 
 	/**
-	 * Load comments linked with current task
+	 * Load comments linked with current task into ->comments
 	 *
 	 * @param	string		$element_type		Element type
 	 * @param	int			$fk_element			Id of element
-	 * @return 	array							Comment array
+	 * @return 	int								Result
 	 */
 	public function fetchAllFor($element_type, $fk_element)
 	{
 		global $db, $conf;
+
 		$this->comments = array();
+
 		if (!empty($element_type) && !empty($fk_element)) {
 			$sql = "SELECT";
 			$sql .= " c.rowid";
-			$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as c";
-			$sql .= " WHERE c.fk_element = ".$fk_element;
+			$sql .= " FROM ".$this->db->prefix().$this->table_element." as c";
+			$sql .= " WHERE c.fk_element = ".((int) $fk_element);
 			$sql .= " AND c.element_type = '".$this->db->escape($element_type)."'";
-			$sql .= " AND c.entity = ".$conf->entity;
+			$sql .= " AND c.entity = ".((int) $conf->entity);
 			$sql .= " ORDER BY c.tms DESC";
 
 			dol_syslog(get_class($this).'::'.__METHOD__, LOG_DEBUG);

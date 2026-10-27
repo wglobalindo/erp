@@ -1,5 +1,7 @@
 <?php
 /* Copyright (C) 2004-2017 Laurent Destailleur  <eldy@users.sourceforge.net>
+ * Copyright (C) 2024-2026  Frédéric France         <frederic.france@free.fr>
+ * Copyright (C) 2024-2026	MDW					<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +23,7 @@
  *		\brief      Page to administer web sites
  */
 
+// Load Dolibarr environment
 require '../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.formadmin.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.formcompany.class.php';
@@ -31,10 +34,18 @@ require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/doleditor.class.php';
 require_once DOL_DOCUMENT_ROOT.'/website/class/website.class.php';
 
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
+
 // Load translation files required by the page
 $langs->loadlangs(array('errors', 'admin', 'companies', 'website'));
 
-$action = GETPOST('action', 'alpha') ?GETPOST('action', 'alpha') : 'view';
+$action = GETPOST('action', 'alpha') ? GETPOST('action', 'alpha') : 'view';
 $confirm = GETPOST('confirm', 'alpha');
 $backtopage = GETPOST('backtopage', 'alpha');
 
@@ -42,27 +53,33 @@ $rowid = GETPOST('rowid', 'alpha');
 
 $id = 1;
 
-if (!$user->admin) accessforbidden();
-
+$acts = array();
 $acts[0] = "activate";
 $acts[1] = "disable";
-$actl[0] = img_picto($langs->trans("Disabled"), 'switch_off');
-$actl[1] = img_picto($langs->trans("Activated"), 'switch_on');
+$actl = array();
+$actl[0] = img_picto($langs->trans("Disabled"), 'switch_off', 'class="size15x"');
+$actl[1] = img_picto($langs->trans("Activated"), 'switch_on', 'class="size15x"');
 
 // Load variable for pagination
-$limit = GETPOST('limit', 'int') ?GETPOST('limit', 'int') : $conf->liste_limit;
+$limit = GETPOSTINT('limit') ? GETPOSTINT('limit') : $conf->liste_limit;
 $sortfield = GETPOST('sortfield', 'aZ09comma');
 $sortorder = GETPOST('sortorder', 'aZ09comma');
-$page = GETPOSTISSET('pageplusone') ? (GETPOST('pageplusone') - 1) : GETPOST("page", 'int');
-if (empty($page) || $page == -1) { $page = 0; }     // If $page is not defined, or '' or -1
+$page = GETPOSTISSET('pageplusone') ? (GETPOSTINT('pageplusone') - 1) : GETPOSTINT("page");
+if (empty($page) || $page == -1) {
+	$page = 0;
+}     // If $page is not defined, or '' or -1
 $offset = $limit * $page;
 $pageprev = $page - 1;
 $pagenext = $page + 1;
 
-if (empty($sortfield)) $sortfield = 'position, ref';
-if (empty($sortorder)) $sortorder = 'ASC';
+if (empty($sortfield)) {
+	$sortfield = 'position, ref';
+}
+if (empty($sortorder)) {
+	$sortorder = 'ASC';
+}
 
-// Initialize technical object to manage hooks of page. Note that conf->hooks_modules contains array of hook context
+// Initialize a technical object to manage hooks of page. Note that conf->hooks_modules contains an array of hook context
 $hookmanager->initHooks(array('website'));
 
 // Name of SQL tables of dictionaries
@@ -75,7 +92,7 @@ $tablib[1] = "Websites";
 
 // Requests to extract data
 $tabsql = array();
-$tabsql[1] = "SELECT f.rowid as rowid, f.entity, f.ref, f.description, f.virtualhost, f.position, f.status FROM ".MAIN_DB_PREFIX.'website as f WHERE f.entity IN ('.getEntity('website').')';
+$tabsql[1] = "SELECT f.rowid as rowid, f.entity, f.ref, f.description, f.virtualhost, f.position, f.status, f.date_creation, f.lastaccess, f.pageviews_previous_month, f.pageviews_total FROM ".MAIN_DB_PREFIX.'website as f WHERE f.entity IN ('.getEntity('website').')';
 
 // Criteria to sort dictionaries
 $tabsqlsort = array();
@@ -83,11 +100,11 @@ $tabsqlsort[1] = "ref ASC";
 
 // Nom des champs en resultat de select pour affichage du dictionnaire
 $tabfield = array();
-$tabfield[1] = "ref,description,virtualhost,position";
+$tabfield[1] = "ref,description,virtualhost,position,date_creation,lastaccess,pageviews_previous_month,pageviews_total";
 
 // Nom des champs d'edition pour modification d'un enregistrement
 $tabfieldvalue = array();
-$tabfieldvalue[1] = "ref,description,virtualhost,position";
+$tabfieldvalue[1] = "ref,description,virtualhost,position,entity";
 
 // Nom des champs dans la table pour insertion d'un enregistrement
 $tabfieldinsert = array();
@@ -101,11 +118,11 @@ $tabrowid[1] = "";
 
 // Condition to show dictionary in setup page
 $tabcond = array();
-$tabcond[1] = (!empty($conf->website->enabled));
+$tabcond[1] = (isModEnabled('website'));
 
 // List of help for fields
 $tabhelp = array();
-$tabhelp[1] = array('ref'=>$langs->trans("EnterAnyCode"), 'virtualhost'=>$langs->trans("SetHereVirtualHost", DOL_DATA_ROOT.'/website/<i>websiteref</i>'));
+$tabhelp[1] = array('ref' => $langs->trans("EnterAnyCode"), 'virtualhost' => $langs->trans("SetHereVirtualHost", DOL_DATA_ROOT.($conf->entity > 1 ? '/'.$conf->entity : '').'/website/<i>websiteref</i>'));
 
 // List of check for fields (NOT USED YET)
 $tabfieldcheck = array();
@@ -116,14 +133,18 @@ $tabfieldcheck[1] = array();
 $elementList = array();
 $sourceList = array();
 
+if (!$user->admin) {
+	accessforbidden();
+}
+
 
 /*
  * Actions
  */
+$error = 0;
 
 // Actions add or modify a website
-if (GETPOST('actionadd', 'alpha') || GETPOST('actionmodify', 'alpha'))
-{
+if (GETPOST('actionadd', 'alpha') || GETPOST('actionmodify', 'alpha')) {
 	$listfield = explode(',', $tabfield[$id]);
 	$listfieldinsert = explode(',', $tabfieldinsert[$id]);
 	$listfieldmodify = explode(',', $tabfieldinsert[$id]);
@@ -131,16 +152,13 @@ if (GETPOST('actionadd', 'alpha') || GETPOST('actionmodify', 'alpha'))
 
 	// Check that all fields are filled
 	$ok = 1;
-	foreach ($listfield as $f => $value)
-	{
-		if ($value == 'ref' && (!GETPOSTISSET($value) || GETPOST($value) == ''))
-		{
+	foreach ($listfield as $f => $value) {
+		if ($value == 'ref' && (!GETPOSTISSET($value) || GETPOST($value) == '')) {
 			$ok = 0;
 			$fieldnamekey = $listfield[$f];
 			setEventMessages($langs->transnoentities("ErrorFieldRequired", $langs->transnoentities($fieldnamekey)), null, 'errors');
 			break;
-		} elseif ($value == 'ref' && !preg_match('/^[a-z0-9_\-\.]+$/i', $_POST[$value]))
-		{
+		} elseif ($value == 'ref' && !preg_match('/^[a-z0-9_\-\.]+$/i', GETPOST($value))) {
 			$ok = 0;
 			$fieldnamekey = $listfield[$f];
 			setEventMessages($langs->transnoentities("ErrorFieldCanNotContainSpecialCharacters", $langs->transnoentities($fieldnamekey)), null, 'errors');
@@ -149,22 +167,19 @@ if (GETPOST('actionadd', 'alpha') || GETPOST('actionmodify', 'alpha'))
 	}
 
 	// Clean parameters
-	if (!empty($_POST['ref']))
-	{
-		$websitekey = strtolower($_POST['ref']);
+	if (GETPOST('ref')) {
+		$websitekey = strtolower(GETPOST('ref'));
 	}
 
-	// Si verif ok et action add, on ajoute la ligne
-	if ($ok && GETPOST('actionadd', 'alpha'))
-	{
-		if ($tabrowid[$id])
-		{
-			// Recupere id libre pour insertion
-			$newid = 0;
-			$sql = "SELECT max(".$tabrowid[$id].") newid from ".$tabname[$id];
+	$newid = 0;
+
+	// In case of 'actionadd' and with valid parameters, add the line
+	if ($ok && GETPOST('actionadd', 'alpha')) {
+		if ($tabrowid[$id]) {
+			// Get free id for insert
+			$sql = "SELECT MAX(".$db->sanitize($tabrowid[$id]).") newid FROM ".$db->sanitize($tabname[$id]);
 			$result = $db->query($sql);
-			if ($result)
-			{
+			if ($result) {
 				$obj = $db->fetch_object($result);
 				$newid = ($obj->newid + 1);
 			} else {
@@ -173,43 +188,48 @@ if (GETPOST('actionadd', 'alpha') || GETPOST('actionmodify', 'alpha'))
 		}
 
 		/* $website=new Website($db);
-        $website->ref=
-        $website->description=
-        $website->virtualhost=
-        $website->create($user); */
+		$website->ref=
+		$website->description=
+		$website->virtualhost=
+		$website->create($user); */
 
 		// Add new entry
-		$sql = "INSERT INTO ".$tabname[$id]." (";
+		$sql = "INSERT INTO ".$db->sanitize($tabname[$id])." (";
 		// List of fields
-		if ($tabrowid[$id] && !in_array($tabrowid[$id], $listfieldinsert))
-			$sql .= $tabrowid[$id].",";
+		if ($tabrowid[$id] && !in_array($tabrowid[$id], $listfieldinsert)) {
+			$sql .= $db->sanitize($tabrowid[$id]).",";
+		}
 		$sql .= $tabfieldinsert[$id];
-		$sql .= ",status)";
+		$sql .= ", status, date_creation)";
 		$sql .= " VALUES(";
 
 		// List of values
-		if ($tabrowid[$id] && !in_array($tabrowid[$id], $listfieldinsert))
-			$sql .= $newid.",";
+		if ($tabrowid[$id] && !in_array($tabrowid[$id], $listfieldinsert)) {
+			$sql .= ((int) $newid).",";
+		}
 		$i = 0;
-		foreach ($listfieldinsert as $f => $value)
-		{
+		foreach ($listfieldinsert as $f => $value) {
 			if ($value == 'entity') {
 				$_POST[$listfieldvalue[$i]] = $conf->entity;
 			}
 			if ($value == 'ref') {
-				$_POST[$listfieldvalue[$i]] = strtolower($_POST[$listfieldvalue[$i]]);
+				$_POST[$listfieldvalue[$i]] = strtolower(GETPOST($listfieldvalue[$i]));
 			}
-			if ($i) $sql .= ",";
-			if ($_POST[$listfieldvalue[$i]] == '') $sql .= "null";
-			else $sql .= "'".$db->escape($_POST[$listfieldvalue[$i]])."'";
+			if ($i) {
+				$sql .= ",";
+			}
+			if (GETPOST($listfieldvalue[$i]) == '') {
+				$sql .= "null";
+			} else {
+				$sql .= "'".$db->escape(GETPOST($listfieldvalue[$i]))."'";
+			}
 			$i++;
 		}
-		$sql .= ",1)";
+		$sql .= ", 1, '".$db->idate(dol_now())."')";
 
 		dol_syslog("actionadd", LOG_DEBUG);
 		$result = $db->query($sql);
-		if ($result)	// Add is ok
-		{
+		if ($result) {	// Add is ok
 			setEventMessages($langs->transnoentities("RecordSaved"), null, 'mesgs');
 			unset($_POST); // Clean $_POST array, we keep only
 		} else {
@@ -221,52 +241,55 @@ if (GETPOST('actionadd', 'alpha') || GETPOST('actionmodify', 'alpha'))
 		}
 	}
 
-	// Si verif ok et action modify, on modifie la ligne
-	if ($ok && GETPOST('actionmodify', 'alpha'))
-	{
-		if ($tabrowid[$id]) { $rowidcol = $tabrowid[$id]; } else { $rowidcol = "rowid"; }
+	// In case of 'actionmodify' and with valid parameters, modify the line
+	if ($ok && GETPOST('actionmodify', 'alpha')) {
+		if ($tabrowid[$id]) {
+			$rowidcol = $tabrowid[$id];
+		} else {
+			$rowidcol = "rowid";
+		}
 
 		$db->begin();
 
 		$website = new Website($db);
-		$rowid = GETPOST('rowid', 'int');
+		$rowid = GETPOSTINT('rowid');
 		$website->fetch($rowid);
 
 		// Modify entry
-		$sql = "UPDATE ".$tabname[$id]." SET ";
-		// Modifie valeur des champs
-		if ($tabrowid[$id] && !in_array($tabrowid[$id], $listfieldmodify))
-		{
-			$sql .= $tabrowid[$id]."=";
-			$sql .= "'".$db->escape($rowid)."', ";
+		$sql = "UPDATE ".$db->sanitize($tabname[$id])." SET ";
+		// Modify the field values
+		if ($tabrowid[$id] && !in_array($tabrowid[$id], $listfieldmodify)) {
+			$sql .= $db->sanitize($tabrowid[$id])." = ";
+			$sql .= "'".$db->escape((string) $rowid)."', ";
 		}
 		$i = 0;
-		foreach ($listfieldmodify as $field)
-		{
+		foreach ($listfieldmodify as $field) {
 			if ($field == 'entity') {
 				$_POST[$listfieldvalue[$i]] = $conf->entity;
 			}
-			if ($i) $sql .= ",";
+			if ($i) {
+				$sql .= ",";
+			}
 			$sql .= $field."=";
-			if ($_POST[$listfieldvalue[$i]] == '') $sql .= "null";
-			else $sql .= "'".$db->escape($_POST[$listfieldvalue[$i]])."'";
+			if (GETPOST($listfieldvalue[$i]) == '') {
+				$sql .= "null";
+			} else {
+				$sql .= "'".$db->escape(GETPOST($listfieldvalue[$i]))."'";
+			}
 			$i++;
 		}
-		$sql .= " WHERE ".$rowidcol." = ".((int) $rowid);
+		$sql .= " WHERE ".$db->sanitize($rowidcol)." = ".((int) $rowid);
 
 		dol_syslog("actionmodify", LOG_DEBUG);
 		//print $sql;
 		$resql = $db->query($sql);
-		if ($resql)
-		{
+		if ($resql) {
 			$newname = dol_sanitizeFileName(GETPOST('ref', 'aZ09'));
-			if ($newname != $website->ref)
-			{
-				$srcfile = DOL_DATA_ROOT.'/website/'.$website->ref;
-				$destfile = DOL_DATA_ROOT.'/website/'.$newname;
+			if ($newname != $website->ref) {
+				$srcfile = DOL_DATA_ROOT.($conf->entity > 1 ? '/'.$conf->entity : '').'/website/'.$website->ref;
+				$destfile = DOL_DATA_ROOT.($conf->entity > 1 ? '/'.$conf->entity : '').'/website/'.$newname;
 
-				if (dol_is_dir($destfile))
-				{
+				if (dol_is_dir($destfile)) {
 					$error++;
 					setEventMessages($langs->trans('ErrorDirAlreadyExists', $destfile), null, 'errors');
 				} else {
@@ -275,8 +298,7 @@ if (GETPOST('actionadd', 'alpha') || GETPOST('actionmodify', 'alpha'))
 					// We must now rename $website->ref into $newname inside files
 					$arrayreplacement = array($website->ref.'/htmlheader.html' => $newname.'/htmlheader.html');
 					$listofilestochange = dol_dir_list($destfile, 'files', 0, '\.php$');
-					foreach ($listofilestochange as $key => $value)
-					{
+					foreach ($listofilestochange as $key => $value) {
 						dolReplaceInFile($value['fullname'], $arrayreplacement);
 					}
 				}
@@ -286,30 +308,25 @@ if (GETPOST('actionadd', 'alpha') || GETPOST('actionmodify', 'alpha'))
 			setEventMessages($db->lasterror(), null, 'errors');
 		}
 
-		if (!$error)
-		{
+		if (!$error) {
 			$db->commit();
 		} else {
 			$db->rollback();
 		}
 	}
-	//$_GET["id"]=GETPOST('id', 'int');       // Force affichage dictionnaire en cours d'edition
 }
 
-if (GETPOST('actioncancel', 'alpha'))
-{
-	//$_GET["id"]=GETPOST('id', 'int');       // Force affichage dictionnaire en cours d'edition
-}
-
-if ($action == 'confirm_delete' && $confirm == 'yes')       // delete
-{
-	if ($tabrowid[$id]) { $rowidcol = $tabrowid[$id]; } else { $rowidcol = "rowid"; }
+if ($action == 'confirm_delete' && $confirm == 'yes') {       // delete
+	if ($tabrowid[$id]) {
+		$rowidcol = $tabrowid[$id];
+	} else {
+		$rowidcol = "rowid";
+	}
 
 	$website = new Website($db);
 	$website->fetch($rowid);
 
-	if ($website->id > 0)
-	{
+	if ($website->id > 0) {
 		$sql = "DELETE from ".MAIN_DB_PREFIX."website_account WHERE fk_website = ".((int) $rowid);
 		$result = $db->query($sql);
 
@@ -321,18 +338,15 @@ if ($action == 'confirm_delete' && $confirm == 'yes')       // delete
 
 		$sql = "DELETE from ".MAIN_DB_PREFIX."website WHERE rowid = ".((int) $rowid);
 		$result = $db->query($sql);
-		if (!$result)
-		{
-			if ($db->errno() == 'DB_ERROR_CHILD_EXISTS')
-			{
+		if (!$result) {
+			if ($db->errno() == 'DB_ERROR_CHILD_EXISTS') {
 				setEventMessages($langs->transnoentities("ErrorRecordIsUsedByChild"), null, 'errors');
 			} else {
 				dol_print_error($db);
 			}
 		}
 
-		if ($website->ref)
-		{
+		if ($website->ref) {
 			dol_delete_dir_recursive($conf->website->dir_output.'/'.$website->ref);
 		}
 	} else {
@@ -341,34 +355,50 @@ if ($action == 'confirm_delete' && $confirm == 'yes')       // delete
 }
 
 // activate
-if ($action == $acts[0])
-{
-	if ($tabrowid[$id]) { $rowidcol = $tabrowid[$id]; } else { $rowidcol = "rowid"; }
-
-	if ($rowid) {
-		$sql = "UPDATE ".$tabname[$id]." SET status = 1 WHERE rowid = ".((int) $rowid);
+if ($action == $acts[0]) {
+	if ($tabrowid[$id]) {
+		$rowidcol = $tabrowid[$id];
+	} else {
+		$rowidcol = "rowid";
 	}
 
-	$result = $db->query($sql);
-	if (!$result)
-	{
-		dol_print_error($db);
+	if ($rowid) {
+		$sql = "UPDATE ".$db->sanitize($tabname[$id])." SET status = 1 WHERE rowid = ".((int) $rowid);
+	} else {
+		$sql = null;
+	}
+
+	if ($sql !== null) {
+		$result = $db->query($sql);
+		if (!$result) {
+			dol_print_error($db);
+		}
+	} else {
+		dol_print_error(null, "No DB entry");
 	}
 }
 
 // disable
-if ($action == $acts[1])
-{
-	if ($tabrowid[$id]) { $rowidcol = $tabrowid[$id]; } else { $rowidcol = "rowid"; }
-
-	if ($rowid) {
-		$sql = "UPDATE ".$tabname[$id]." SET status = 0 WHERE rowid = ".((int) $rowid);
+if ($action == $acts[1]) {
+	if ($tabrowid[$id]) {
+		$rowidcol = $tabrowid[$id];
+	} else {
+		$rowidcol = "rowid";
 	}
 
-	$result = $db->query($sql);
-	if (!$result)
-	{
-		dol_print_error($db);
+	if ($rowid) {
+		$sql = "UPDATE ".$db->sanitize($tabname[$id])." SET status = 0 WHERE rowid = ".((int) $rowid);
+	} else {
+		$sql = null;
+	}
+
+	if ($sql !== null) {
+		$result = $db->query($sql);
+		if (!$result) {
+			dol_print_error($db);
+		}
+	} else {
+		dol_print_error(null, "No DB entry");
 	}
 }
 
@@ -381,10 +411,12 @@ if ($action == $acts[1])
 $form = new Form($db);
 $formadmin = new FormAdmin($db);
 
-llxHeader('', $langs->trans("WebsiteSetup"));
+llxHeader('', $langs->trans("WebsiteSetup"), '', '', 0, 0, '', '', '', 'mod-admin page-website');
 
 $titre = $langs->trans("WebsiteSetup");
-$linkback = '<a href="'.($backtopage ? $backtopage : DOL_URL_ROOT.'/admin/modules.php').'">'.$langs->trans("BackToModuleList").'</a>';
+
+$linkback = '<a href="'.($backtopage ? $backtopage : DOL_URL_ROOT.'/admin/modules.php?restore_lastsearch_values=1').'">'.img_picto($langs->trans("BackToModuleList"), 'back', 'class="pictofixedwidth"').'<span class="hideonsmartphone">'.$langs->trans("BackToModuleList").'</span></a>';
+
 print load_fiche_titre($titre, $linkback, 'title_setup');
 
 // Onglets
@@ -396,10 +428,12 @@ $head[$h][1] = $langs->trans("WebSites");
 $head[$h][2] = 'website';
 $h++;
 
+/* disable, no option for the moment
 $head[$h][0] = DOL_URL_ROOT."/admin/website_options.php";
 $head[$h][1] = $langs->trans("Options");
 $head[$h][2] = 'options';
 $h++;
+*/
 
 print dol_get_fiche_head($head, 'website', '', -1);
 
@@ -408,9 +442,8 @@ print '<span class="opacitymedium">'.$langs->trans("WebsiteSetupDesc").'</span><
 print "<br>\n";
 
 
-// Confirmation de la suppression de la ligne
-if ($action == 'delete')
-{
+// Generate form to confirm line deletion
+if ($action == 'delete') {
 	print $form->formconfirm($_SERVER["PHP_SELF"].'?'.($page ? 'page='.$page.'&' : '').'sortfield='.$sortfield.'&sortorder='.$sortorder.'&rowid='.$rowid, $langs->trans('DeleteWebsite'), $langs->trans('ConfirmDeleteWebsite'), 'confirm_delete', '', 0, 1, 220);
 }
 //var_dump($elementList);
@@ -418,9 +451,8 @@ if ($action == 'delete')
 /*
  * Show website list
  */
-if ($id)
-{
-	// Complete requete recherche valeurs avec critere de tri
+if ($id) {
+	// Complete the request - lookup values with sort condition
 	$sql = $tabsql[$id];
 	$sql .= $db->order($sortfield, $sortorder);
 	$sql .= $db->plimit($limit + 1, $offset);
@@ -430,32 +462,39 @@ if ($id)
 
 	print '<form action="'.$_SERVER['PHP_SELF'].'" method="POST">';
 	print '<input type="hidden" name="token" value="'.newToken().'">';
+
+	print '<div class="div-table-responsive-no-min">';
 	print '<table class="noborder centpercent">';
 
 	// Form to add a new line
-	if ($tabname[$id])
-	{
-		$fieldlist = explode(',', $tabfield[$id]);
-
+	if ($tabname[$id]) {
 		// Line for title
 		print '<tr class="liste_titre">';
-		foreach ($fieldlist as $field => $value)
-		{
-			// Determine le nom du champ par rapport aux noms possibles
-			// dans les dictionnaires de donnees
-			$valuetoshow = ucfirst($fieldlist[$field]); // Par defaut
+		foreach ($fieldlist as $field => $value) {
+			if (in_array($fieldlist[$field], array('date_creation', 'lastaccess', 'pageviews_previous_month', 'pageviews_month', 'pageviews_total'))) {
+				continue;
+			}
+
+			// Get the field name based on the names available in the data dictionaries
+			$valuetoshow = ucfirst($fieldlist[$field]); // By default
 			$valuetoshow = $langs->trans($valuetoshow); // try to translate
-			$align = '';
-			if ($fieldlist[$field] == 'lang') { $valuetoshow = $langs->trans("Language"); }
-			if ($valuetoshow != '')
-			{
-				print '<td class="'.$align.'">';
-				if (!empty($tabhelp[$id][$value]) && preg_match('/^http(s*):/i', $tabhelp[$id][$value])) print '<a href="'.$tabhelp[$id][$value].'" target="_blank">'.$valuetoshow.' '.img_help(1, $valuetoshow).'</a>';
-				elseif (!empty($tabhelp[$id][$value]))
-		   		{
-		   			if ($value == 'virtualhost') print $form->textwithpicto($valuetoshow, $tabhelp[$id][$value], 1, 'help', '', 0, 2, 'tooltipvirtual');
-		   			else print $form->textwithpicto($valuetoshow, $tabhelp[$id][$value]);
-		   		} else print $valuetoshow;
+			$css = '';
+			if ($fieldlist[$field] == 'lang') {
+				$valuetoshow = $langs->trans("Language");
+			}
+			if ($valuetoshow != '') {
+				print '<td class="'.$css.'">';
+				if (!empty($tabhelp[$id][$value]) && preg_match('/^http(s*):/i', $tabhelp[$id][$value])) {
+					print '<a href="'.$tabhelp[$id][$value].'" target="_blank" rel="noopener noreferrer">'.$valuetoshow.' '.img_help(1, $valuetoshow).'</a>';
+				} elseif (!empty($tabhelp[$id][$value])) {
+					if ($value == 'virtualhost') {
+						print $form->textwithpicto($valuetoshow, $tabhelp[$id][$value], 1, 'help', '', 0, 2, 'tooltipvirtual');
+					} else {
+						print $form->textwithpicto($valuetoshow, $tabhelp[$id][$value]);
+					}
+				} else {
+					print $valuetoshow;
+				}
 				print '</td>';
 			}
 		}
@@ -469,40 +508,39 @@ if ($id)
 
 		$obj = new stdClass();
 		// If data was already input, we define them in obj to populate input fields.
-		if (GETPOST('actionadd', 'alpha'))
-		{
-			foreach ($fieldlist as $key=>$val)
-			{
-				if (GETPOST($val, 'alpha'))
+		if (GETPOST('actionadd', 'alpha')) {
+			foreach ($fieldlist as $key => $val) {
+				if (GETPOST($val, 'alpha')) {
 					$obj->$val = GETPOST($val);
+				}
 			}
+		}
+		if (!isset($obj->position)) {
+			$obj->position = 1;
 		}
 
 		fieldListWebsites($fieldlist, $obj, $tabname[$id], 'add');
 
 		print '<td colspan="3" class="right">';
-		if ($action != 'edit')
-		{
-			print '<input type="submit" class="button" name="actionadd" value="'.$langs->trans("Add").'">';
+		if ($action != 'edit') {
+			print '<input type="submit" class="button button-add" name="actionadd" value="'.$langs->trans("Add").'">';
 		}
 		print '</td>';
 		print "</tr>";
-
-		$colspan = count($fieldlist) + 2;
 	}
 
 	print '</table>';
+	print '</div>';
+
 	print '</form>';
 
 
 	// List of websites in database
 	$resql = $db->query($sql);
-	if ($resql)
-	{
+	if ($resql) {
 		$num = $db->num_rows($resql);
 		$i = 0;
-		if ($num)
-		{
+		if ($num) {
 			print '<br>';
 
 			print '<form action="'.$_SERVER['PHP_SELF'].'" method="POST">';
@@ -510,98 +548,144 @@ if ($id)
 			print '<input type="hidden" name="page" value="'.$page.'">';
 			print '<input type="hidden" name="rowid" value="'.$rowid.'">';
 
+			print '<div class="div-table-responsive">';
 			print '<table class="noborder centpercent">';
 
 			// Title of lines
 			print '<tr class="liste_titre">';
-			foreach ($fieldlist as $field => $value)
-			{
-				// Determine le nom du champ par rapport aux noms possibles
-				// dans les dictionnaires de donnees
-				$showfield = 1; // Par defaut
+			foreach ($fieldlist as $field => $value) {
+				// Determine the field name based on the possible names
+				// in the data dictionaries.
+				$showfield = 1; // By default
 				$align = "left";
 				$sortable = 1;
 				$valuetoshow = '';
+				if (in_array($fieldlist[$field], array('pageviews_total', 'pageviews_previous_month'))) {
+					$align = 'right';
+				}
+
 				/*
-                $tmparray=getLabelOfField($fieldlist[$field]);
-                $showfield=$tmp['showfield'];
-                $valuetoshow=$tmp['valuetoshow'];
-                $align=$tmp['align'];
-                $sortable=$tmp['sortable'];
+				$tmparray=getLabelOfField($fieldlist[$field]);
+				$showfield=$tmp['showfield'];
+				$valuetoshow=$tmp['valuetoshow'];
+				$align=$tmp['align'];
+				$sortable=$tmp['sortable'];
 				*/
-				$valuetoshow = ucfirst($fieldlist[$field]); // Par defaut
+				$valuetoshow = ucfirst($fieldlist[$field]); // By default
 				$valuetoshow = $langs->trans($valuetoshow); // try to translate
-				if ($fieldlist[$field] == 'lang') { $valuetoshow = $langs->trans("Language"); }
-				if ($fieldlist[$field] == 'type') { $valuetoshow = $langs->trans("Type"); }
-				if ($fieldlist[$field] == 'code') { $valuetoshow = $langs->trans("Code"); }
+				if ($fieldlist[$field] == 'lang') {
+					$valuetoshow = $langs->trans("Language");
+				}
+				if ($fieldlist[$field] == 'type') {
+					$valuetoshow = $langs->trans("Type");
+				}
+				if ($fieldlist[$field] == 'code') {
+					$valuetoshow = $langs->trans("Code");
+				}
+				if ($fieldlist[$field] == 'date_creation') {
+					$valuetoshow = $langs->trans("DateCreation");
+				}
+				if ($fieldlist[$field] == 'lastaccess') {
+					$valuetoshow = $langs->trans("LastAccess");
+				}
+				if ($fieldlist[$field] == 'pageviews_previous_month') {
+					$valuetoshow = $langs->trans("PagesViewedPreviousMonth");
+				}
+				if ($fieldlist[$field] == 'pageviews_total') {
+					$valuetoshow = $langs->trans("PagesViewedTotal");
+				}
 
 				// Affiche nom du champ
-				if ($showfield)
-				{
-					print getTitleFieldOfList($valuetoshow, 0, $_SERVER["PHP_SELF"], ($sortable ? $fieldlist[$field] : ''), ($page ? 'page='.$page.'&' : ''), "", "align=".$align, $sortfield, $sortorder);
+				if ($showfield) {
+					print getTitleFieldOfList($valuetoshow, 0, $_SERVER["PHP_SELF"], ($sortable ? $fieldlist[$field] : ''), ($page ? 'page='.$page.'&' : ''), "", '', $sortfield, $sortorder, $align.' ');
 				}
 			}
 
-			print getTitleFieldOfList($langs->trans("Status"), 0, $_SERVER["PHP_SELF"], "status", ($page ? 'page='.$page.'&' : ''), "", 'align="center"', $sortfield, $sortorder);
+			// Status
+			print getTitleFieldOfList($langs->trans("Status"), 0, $_SERVER["PHP_SELF"], "status", ($page ? 'page='.$page.'&' : ''), "", '', $sortfield, $sortorder, 'center ');
 			print getTitleFieldOfList('');
 			print getTitleFieldOfList('');
 			print '</tr>';
 
 			// Lines with values
-			while ($i < $num)
-			{
+			while ($i < $num) {
 				$obj = $db->fetch_object($resql);
 				//print_r($obj);
 				print '<tr class="oddeven" id="rowid-'.$obj->rowid.'">';
-				if ($action == 'edit' && ($rowid == (!empty($obj->rowid) ? $obj->rowid : $obj->code)))
-				{
+				if ($action == 'edit' && ($rowid == (!empty($obj->rowid) ? $obj->rowid : $obj->code))) {
 					$tmpaction = 'edit';
-					$parameters = array('fieldlist'=>$fieldlist, 'tabname'=>$tabname[$id]);
+					$parameters = array('fieldlist' => $fieldlist, 'tabname' => $tabname[$id]);
 					$reshook = $hookmanager->executeHooks('editWebsiteFieldlist', $parameters, $obj, $tmpaction); // Note that $action and $object may have been modified by some hooks
-					$error = $hookmanager->error; $errors = $hookmanager->errors;
+					$error = $hookmanager->error;
+					$errors = $hookmanager->errors;
 
-					if (empty($reshook)) fieldListWebsites($fieldlist, $obj, $tabname[$id], 'edit');
+					if (empty($reshook)) {
+						fieldListWebsites($fieldlist, $obj, $tabname[$id], 'edit');
+					}
 
-					print '<td colspan="3" class="right"><a name="'.(!empty($obj->rowid) ? $obj->rowid : $obj->code).'">&nbsp;</a><input type="submit" class="button" name="actionmodify" value="'.$langs->trans("Modify").'">';
-					print '&nbsp;<input type="submit" class="button button-cancel" name="actioncancel" value="'.$langs->trans("Cancel").'"></td>';
+					print '<td colspan="7" class="right"><a name="'.(!empty($obj->rowid) ? $obj->rowid : $obj->code).'">&nbsp;</a>';
+					print '<input type="submit" class="button button-edit small" name="actionmodify" value="'.$langs->trans("Modify").'">';
+					print '&nbsp;';
+					print '<input type="submit" class="button button-cancel small" name="actioncancel" value="'.$langs->trans("Cancel").'">';
+					print '</td>';
 				} else {
-				  	$tmpaction = 'view';
-					$parameters = array('fieldlist'=>$fieldlist, 'tabname'=>$tabname[$id]);
+					$tmpaction = 'view';
+					$parameters = array('fieldlist' => $fieldlist, 'tabname' => $tabname[$id]);
 					$reshook = $hookmanager->executeHooks('viewWebsiteFieldlist', $parameters, $obj, $tmpaction); // Note that $action and $object may have been modified by some hooks
 
-					$error = $hookmanager->error; $errors = $hookmanager->errors;
+					$error = $hookmanager->error;
+					$errors = $hookmanager->errors;
 
-					if (empty($reshook))
-					{
-						foreach ($fieldlist as $field => $value)
-						{
+					if (empty($reshook)) {
+						foreach ($fieldlist as $field => $value) {
 							$showfield = 1;
-							$align = "left";
 							$fieldname = $fieldlist[$field];
+							$css = "";
+							if ($fieldlist[$field] == 'description') {
+								$css .= ' tdoverflowmax300';
+							}
+							if (in_array($fieldname, array('pageviews_total', 'pageviews_previous_month'))) {
+								$css = 'right';
+							}
+							if ($fieldlist[$field] == 'date_creation') {
+								$css .= ' nowraponall';
+							}
+							if ($fieldlist[$field] == 'lastaccess') {
+								$css .= ' nowraponall';
+							}
 							$valuetoshow = $obj->$fieldname;
 
 							// Show value for field
-							if ($showfield) print '<td align="'.$align.'">'.$valuetoshow.'</td>';
+							if ($showfield) {
+								print '<td class="'.$css.'">'.$valuetoshow.'</td>';
+							}
 						}
 					}
 
 					// Can an entry be erased or disabled ?
-					$iserasable = 1; $isdisable = 1; // true by default
-					if ($obj->status) $iserasable = 0; // We can't delete a website on. Disable it first.
+					$iserasable = 1;
+					$isdisable = 1; // true by default
+					if ($obj->status) {
+						$iserasable = 0; // We can't delete a website on. Disable it first.
+					}
 
-					$url = $_SERVER["PHP_SELF"].'?'.($page ? 'page='.$page.'&' : '').'sortfield='.$sortfield.'&sortorder='.$sortorder.'&rowid='.(!empty($obj->rowid) ? $obj->rowid : (!empty($obj->code) ? $obj->code : '')).'&amp;code='.(!empty($obj->code) ?urlencode($obj->code) : '').'&amp;';
+					$url = $_SERVER["PHP_SELF"].'?'.($page ? 'page='.$page.'&' : '').'sortfield='.$sortfield.'&sortorder='.$sortorder.'&rowid='.(!empty($obj->rowid) ? $obj->rowid : (!empty($obj->code) ? $obj->code : '')).'&amp;code='.(!empty($obj->code) ? urlencode($obj->code) : '').'&amp;';
+
 
 					// Active
 					print '<td align="center" class="nowrap">';
-					print '<a class="reposition" href="'.$url.'action='.$acts[($obj->status ? 1 : 0)].'">'.$actl[($obj->status ? 1 : 0)].'</a>';
+					print '<a class="reposition" href="'.$url.'action='.$acts[($obj->status ? 1 : 0)].'&token='.newToken().'">'.$actl[($obj->status ? 1 : 0)].'</a>';
 					print "</td>";
 
 					// Modify link
-					print '<td align="center"><a class="reposition" href="'.$url.'action=edit&token='.newToken().'">'.img_edit().'</a></td>';
+					print '<td align="center"><a class="reposition editfielda" href="'.$url.'action=edit&token='.newToken().'">'.img_edit().'</a></td>';
 
 					// Delete link
-					if ($iserasable) print '<td align="center"><a class="reposition" href="'.$url.'action=delete&token='.newToken().'">'.img_delete().'</a></td>';
-					else print '<td class="center">'.img_delete($langs->trans("DisableSiteFirst"), 'class="opacitymedium"').'</td>';
+					if ($iserasable) {
+						print '<td align="center"><a class="reposition" href="'.$url.'action=delete&token='.newToken().'">'.img_delete().'</a></td>';
+					} else {
+						print '<td class="center">'.img_delete($langs->trans("DisableSiteFirst"), 'class="opacitymedium"').'</td>';
+					}
 
 					print "</tr>\n";
 				}
@@ -609,6 +693,7 @@ if ($id)
 			}
 
 			print '</table>';
+			print '</div>';
 
 			print '</form>';
 		}
@@ -627,13 +712,13 @@ $db->close();
 /**
  *	Show fields in insert/edit mode
  *
- * 	@param		array	$fieldlist		Array of fields
- * 	@param		Object	$obj			If we show a particular record, obj is filled with record fields
+ * 	@param		string[]	$fieldlist		Array of fields
+ * 	@param		?Object	$obj			If we show a particular record, obj is filled with record fields
  *  @param		string	$tabname		Name of SQL table
- *  @param		string	$context		'add'=Output field for the "add form", 'edit'=Output field for the "edit form", 'hide'=Output field for the "add form" but we dont want it to be rendered
+ *  @param		string	$context		'add'=Output field for the "add form", 'edit'=Output field for the "edit form", 'hide'=Output field for the "add form" but we don't want it to be rendered
  *	@return		void
  */
-function fieldListWebsites($fieldlist, $obj = '', $tabname = '', $context = '')
+function fieldListWebsites($fieldlist, $obj = null, $tabname = '', $context = '')
 {
 	global $conf, $langs, $db;
 	global $form;
@@ -643,24 +728,41 @@ function fieldListWebsites($fieldlist, $obj = '', $tabname = '', $context = '')
 
 	$formadmin = new FormAdmin($db);
 
-	foreach ($fieldlist as $field => $value)
-	{
+	foreach ($fieldlist as $field => $value) {
+		if (in_array($fieldlist[$field], array('lastaccess', 'pageviews_previous_month', 'pageviews_month', 'pageviews_total'))) {
+			continue;
+		}
+
 		$fieldname = $fieldlist[$field];
-		if ($fieldlist[$field] == 'lang')
-		{
+
+		if ($fieldlist[$field] == 'lang') {
 			print '<td>';
-			print $formadmin->select_language($conf->global->MAIN_LANG_DEFAULT, 'lang');
+			print $formadmin->select_language(getDolGlobalString('MAIN_LANG_DEFAULT'), 'lang');
 			print '</td>';
 		} elseif ($fieldlist[$field] == 'code' && isset($obj->$fieldname)) {
 			print '<td><input type="text" class="flat" value="'.(!empty($obj->$fieldname) ? $obj->$fieldname : '').'" size="10" name="'.$fieldlist[$field].'"></td>';
 		} else {
+			if ($fieldlist[$field] == 'date_creation') {
+				continue;
+			}
+
 			print '<td>';
 			$size = '';
-			if ($fieldlist[$field] == 'code') $size = 'size="8" ';
-			if ($fieldlist[$field] == 'position') $size = 'size="4" ';
-			if ($fieldlist[$field] == 'libelle') $size = 'size="32" ';
-			if ($fieldlist[$field] == 'tracking') $size = 'size="92" ';
-			if ($fieldlist[$field] == 'sortorder') $size = 'size="2" ';
+			if ($fieldlist[$field] == 'code') {
+				$size = 'size="8" ';
+			}
+			if ($fieldlist[$field] == 'position') {
+				$size = 'size="4" ';
+			}
+			if ($fieldlist[$field] == 'libelle') {
+				$size = 'size="32" ';
+			}
+			if ($fieldlist[$field] == 'tracking') {
+				$size = 'size="92" ';
+			}
+			if ($fieldlist[$field] == 'sortorder') {
+				$size = 'size="2" ';
+			}
 			print '<input type="text" '.$size.' class="flat" value="'.(isset($obj->$fieldname) ? $obj->$fieldname : '').'" name="'.$fieldlist[$field].'">';
 			print '</td>';
 		}

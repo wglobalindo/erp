@@ -1,6 +1,6 @@
 <?php
 /* Copyright (C) 2004-2018  Laurent Destailleur     <eldy@users.sourceforge.net>
- * Copyright (C) 2019       Frédéric France         <frederic.france@netlogic.fr>
+ * Copyright (C) 2019-2024  Frédéric France         <frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,17 +13,19 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
+
 /**
  *  \defgroup   zapier     Module Zapier
  *  \brief      Zapier module descriptor.
  *
  *  \file       htdocs/core/modules/modZapier.class.php
  *  \ingroup    zapier
- *  \brief      Description and activation file for module Zapier
+ *  \brief      Description and activation file for the module Zapier
  */
-include_once DOL_DOCUMENT_ROOT.'/core/modules/DolibarrModules.class.php';
+
+require_once DOL_DOCUMENT_ROOT.'/core/modules/DolibarrModules.class.php';
 
 /**
  *  Description and activation class for module Zapier
@@ -37,7 +39,7 @@ class modZapier extends DolibarrModules
 	 */
 	public function __construct($db)
 	{
-		global $langs, $conf;
+		global $conf;
 
 		$this->db = $db;
 		// Id for module (must be unique).
@@ -59,15 +61,15 @@ class modZapier extends DolibarrModules
 		// Used only if file README.md and README-LL.md not found.
 		$this->descriptionlong = "Zapier description (Long)";
 		// Possible values for version are: 'development', 'experimental', 'dolibarr', 'dolibarr_deprecated' or a version string like 'x.y.z'
-		$this->version = 'development';
+		$this->version = 'experimental';
 		//Url to the file with your last numberversion of this module
 		//$this->url_last_version = 'http://www.example.com/versionmodule.txt';
 		// Key used in llx_const table to save module status enabled/disabled (where ZAPIERFORDOLIBARR is value of property name of module in uppercase)
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		// Name of image file used for this module.
-		// If file is in theme/yourtheme/img directory under name object_pictovalue.png, use this->picto='pictovalue'
+		// If file is in theme/yourtheme/img directory under name object_pictovalue.png, use this->picto='pictovalue.png'
 		// If file is in module/img directory under name object_pictovalue.png, use this->picto='pictovalue@module'
-		$this->picto = 'zapier';
+		$this->picto = 'zapier.png';
 		// Define some features supported by module (triggers, login, substitutions, menus, css, etc...)
 		$this->module_parts = array(
 			// Set this to 1 if module has its own trigger directory (core/triggers)
@@ -110,12 +112,12 @@ class modZapier extends DolibarrModules
 		$this->dirs = array("/zapier/temp");
 		// Config pages. Put here list of php page, stored into zapier/admin directory, to use to setup module.
 		$this->config_page_url = array(
-		//    "setup.php@zapier"
+			"setup.php@zapier"
 		);
 		// Dependencies
 		// A condition to hide module
 		$this->hidden = false;
-		// List of module class names as string that must be enabled if this module is enabled. Example: array('always1'=>'modModuleToEnable1','always2'=>'modModuleToEnable2', 'FR1'=>'modModuleToEnableFR'...)
+		// List of module class names as string that must be enabled if this module is enabled. Example: array('always'=>array('modModuleToEnable1','modModuleToEnable2'), 'FR'=>array('modModuleToEnableFR'...))
 		$this->depends = array('modApi');
 		// List of module class names as string to disable if this one is disabled. Example: array('modModuleToDisable1', ...)
 		$this->requiredby = array();
@@ -123,18 +125,11 @@ class modZapier extends DolibarrModules
 		$this->conflictwith = array();
 		$this->langfiles = array("zapier");
 		// Minimum version of PHP required by module
-		//$this->phpmin = array(5, 5);
+		//$this->phpmin = array(7, 0);
 		// Minimum version of Dolibarr required by module
 		$this->need_dolibarr_version = array(10, 0);
-		// Warning to show when we activate module. array('always'='text') or array('FR'='textfr','ES'='textes'...)
 		$this->warnings_activation = array();
-		// Warning to show when we activate an external module. array('always'='text') or array('FR'='textfr','ES'='textes'...)
 		$this->warnings_activation_ext = array();
-		// $this->automatic_activation = array(
-		//     'FR'=>'ZapierWasAutomaticallyActivatedBecauseOfYourCountryChoice',
-		// );
-		// If true, can't be disabled
-		// $this->always_enabled = true;
 		// Constants
 		// List of particular constants to add when module is enabled (key, 'chaine', value, desc, visible, 'current' or 'allentities', deleteonunactive)
 		// Example: $this->const=array(
@@ -146,9 +141,9 @@ class modZapier extends DolibarrModules
 		);
 		// Some keys to add into the overwriting translation tables
 		/*$this->overwrite_translation = array(
-            'en_US:ParentCompany'=>'Parent company or reseller',
-            'fr_FR:ParentCompany'=>'Maison mère ou revendeur'
-        )*/
+			'en_US:ParentCompany'=>'Parent company or reseller',
+			'fr_FR:ParentCompany'=>'Maison mère ou revendeur'
+		)*/
 		if (!isset($conf->zapier) || !isset($conf->zapier->enabled)) {
 			$conf->zapier = new stdClass();
 			$conf->zapier->enabled = 0;
@@ -168,9 +163,9 @@ class modZapier extends DolibarrModules
 		// 'intervention'     to add a tab in intervention view
 		// 'invoice'          to add a tab in customer invoice view
 		// 'invoice_supplier' to add a tab in supplier invoice view
-		// 'member'           to add a tab in fundation member view
+		// 'member'           to add a tab in foundation member view
 		// 'opensurveypoll'	  to add a tab in opensurvey poll view
-		// 'order'            to add a tab in customer order view
+		// 'order'            to add a tab in sales order view
 		// 'order_supplier'   to add a tab in supplier order view
 		// 'payment'		  to add a tab in payment view
 		// 'payment_supplier' to add a tab in supplier payment view
@@ -180,31 +175,10 @@ class modZapier extends DolibarrModules
 		// 'stock'            to add a tab in stock view
 		// 'thirdparty'       to add a tab in third party view
 		// 'user'             to add a tab in user view
+
 		// Dictionaries
 		$this->dictionaries = array();
-		/* Example:
-        $this->dictionaries=array(
-            'langs'=>'mylangfile@zapier',
-            // List of tables we want to see into dictonnary editor
-            'tabname'=>array(MAIN_DB_PREFIX."table1",MAIN_DB_PREFIX."table2",MAIN_DB_PREFIX."table3"),
-            // Label of tables
-            'tablib'=>array("Table1","Table2","Table3"),
-            // Request to select fields
-            'tabsql'=>array('SELECT f.rowid as rowid, f.code, f.label, f.active FROM '.MAIN_DB_PREFIX.'table1 as f','SELECT f.rowid as rowid, f.code, f.label, f.active FROM '.MAIN_DB_PREFIX.'table2 as f','SELECT f.rowid as rowid, f.code, f.label, f.active FROM '.MAIN_DB_PREFIX.'table3 as f'),
-            // Sort order
-            'tabsqlsort'=>array("label ASC","label ASC","label ASC"),
-            // List of fields (result of select to show dictionary)
-            'tabfield'=>array("code,label","code,label","code,label"),
-            // List of fields (list of fields to edit a record)
-            'tabfieldvalue'=>array("code,label","code,label","code,label"),
-            // List of fields (list of fields for insert)
-            'tabfieldinsert'=>array("code,label","code,label","code,label"),
-            // Name of columns with primary key (try to always name it 'rowid')
-            'tabrowid'=>array("rowid","rowid","rowid"),
-            // Condition to show each dictionary
-            'tabcond'=>array($conf->zapier->enabled,$conf->zapier->enabled,$conf->zapier->enabled)
-        );
-        */
+
 		// Boxes/Widgets
 		// Add here list of php file(s) stored in zapier/core/boxes that contains class to show a widget.
 		$this->boxes = array(
@@ -230,7 +204,7 @@ class modZapier extends DolibarrModules
 			//      'frequency' => 2,
 			//      'unitfrequency' => 3600,
 			//      'status' => 0,
-			//      'test' => '$conf->zapier->enabled',
+			//      'test' => 'isModEnabled('zapier')',
 			//      'priority' => 50,
 			//  ),
 		);
@@ -242,13 +216,13 @@ class modZapier extends DolibarrModules
 		// Permission array used by this module
 		$this->rights = array();
 
-		$r = 0;
+		$r = 1;
 		// Permission id (must not be already used)
 		$this->rights[$r][0] = $this->numero + $r;
 		// Permission label
 		$this->rights[$r][1] = 'Read myobject of Zapier';
 		// Permission by default for new user (0/1)
-		$this->rights[$r][3] = 1;
+		$this->rights[$r][3] = 0;
 		// In php code, permission will be checked by test if ($user->rights->zapier->level1->level2)
 		$this->rights[$r][4] = 'read';
 		// In php code, permission will be checked by test if ($user->rights->zapier->level1->level2)
@@ -256,66 +230,19 @@ class modZapier extends DolibarrModules
 		$r++;
 		$this->rights[$r][0] = $this->numero + $r;
 		$this->rights[$r][1] = 'Create/Update myobject of Zapier';
-		$this->rights[$r][3] = 1;
+		$this->rights[$r][3] = 0;
 		$this->rights[$r][4] = 'write';
 		$this->rights[$r][5] = '';
 		$r++;
 		$this->rights[$r][0] = $this->numero + $r;
 		$this->rights[$r][1] = 'Delete myobject of Zapier';
-		$this->rights[$r][3] = 1;
+		$this->rights[$r][3] = 0;
 		$this->rights[$r][4] = 'delete';
 		$this->rights[$r][5] = '';
 
 		// Main menu entries
 		$this->menu = array(); // List of menus to add
 		$r = 0;
-
-		// Add here entries to declare new menus
-		// $this->menu[$r++]=array(
-		//     'fk_menu' => '',                          // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
-		//     'type' => 'top',                          // This is a Top menu entry
-		//     'titre' => 'Zapier',
-		//     'mainmenu' => 'zapier',
-		//     'leftmenu' => '',
-		//     'url' => '/zapier/zapierindex.php',
-		//     'langs' => 'zapier@zapier',	        // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
-		//     'position' => 1000+$r,
-		//     'enabled' => '$conf->zapier->enabled',  // Define condition to show or hide menu entry. Use '$conf->zapier->enabled' if entry must be visible if module is enabled.
-		//     'perms' => '1',			                // Use 'perms'=>'$user->rights->zapier->level1->level2' if you want your menu with a permission rules
-		//     'target' => '',
-		//     'user' => 2,				                // 0=Menu for internal users, 1=external users, 2=both
-		// );
-
-		/*
-        $this->menu[$r++]=array(
-            'fk_menu'=>'fk_mainmenu=zapier',	    // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
-            'type'=>'left',			                // This is a Left menu entry
-            'titre'=>'List MyObject',
-            'mainmenu'=>'zapier',
-            'leftmenu'=>'zapier_myobject_list',
-            'url'=>'/zapier/myobject_list.php',
-            'langs'=>'zapier@zapier',	        // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
-            'position'=>1000+$r,
-            'enabled'=>'$conf->zapier->enabled',  // Define condition to show or hide menu entry. Use '$conf->zapier->enabled' if entry must be visible if module is enabled. Use '$leftmenu==\'system\'' to show if leftmenu system is selected.
-            'perms'=>'1',			                // Use 'perms'=>'$user->rights->zapier->level1->level2' if you want your menu with a permission rules
-            'target'=>'',
-            'user'=>2,				                // 0=Menu for internal users, 1=external users, 2=both
-        );
-        $this->menu[$r++]=array(
-            'fk_menu'=>'fk_mainmenu=zapier,fk_leftmenu=zapier',	    // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
-            'type'=>'left',			                // This is a Left menu entry
-            'titre'=>'New MyObject',
-            'mainmenu'=>'zapier',
-            'leftmenu'=>'zapier_myobject_new',
-            'url'=>'/zapier/myobject_page.php?action=create',
-            'langs'=>'zapier@zapier',	        // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
-            'position'=>1000+$r,
-            'enabled'=>'$conf->zapier->enabled',  // Define condition to show or hide menu entry. Use '$conf->zapier->enabled' if entry must be visible if module is enabled. Use '$leftmenu==\'system\'' to show if leftmenu system is selected.
-            'perms'=>'1',			                // Use 'perms'=>'$user->rights->zapier->level1->level2' if you want your menu with a permission rules
-            'target'=>'',
-            'user'=>2,                              // 0=Menu for internal users, 1=external users, 2=both
-        );
-        */
 	}
 
 	/**
@@ -328,8 +255,10 @@ class modZapier extends DolibarrModules
 	 */
 	public function init($options = '')
 	{
-		$result = $this->_load_tables('/zapier/sql/');
-		if ($result < 0) return -1; // Do not activate module if not allowed errors found on module SQL queries (the _load_table run sql with run_sql with error allowed parameter to 'default')
+		$result = $this->_load_tables('/install/mysql/', 'zapier');
+		if ($result < 0) {
+			return -1; // Do not activate module if error 'not allowed' returned when loading module SQL queries (the _load_table run sql with run_sql with the error allowed parameter set to 'default')
+		}
 
 		// Create extrafields
 		//include_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
@@ -339,7 +268,9 @@ class modZapier extends DolibarrModules
 		//$result3=$extrafields->addExtraField('myattr3', "New Attr 3 label", 'varchar', 1, 10, 'bank_account', 0, 0, '', '', 1, '', 0, 0, '', '', 'zapier@zapier', '$conf->zapier->enabled');
 		//$result4=$extrafields->addExtraField('myattr4', "New Attr 4 label", 'select',  1,  3, 'thirdparty',   0, 1, '', array('options'=>array('code1'=>'Val1','code2'=>'Val2','code3'=>'Val3')), 1,'', 0, 0, '', '', 'zapier@zapier', '$conf->zapier->enabled');
 		//$result5=$extrafields->addExtraField('myattr5', "New Attr 5 label", 'text',    1, 10, 'user',         0, 0, '', '', 1, '', 0, 0, '', '', 'zapier@zapier', '$conf->zapier->enabled');
+
 		$sql = array();
+
 		return $this->_init($sql, $options);
 	}
 
