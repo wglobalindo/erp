@@ -28,13 +28,14 @@
 | 3. 코어 수정 13개 이관 | 완료 — 처음엔 코어 패치(#64), 이후 전부 플러그인으로 이동(erp_plugin #4)하고 코어 원복 | erp #64, erp_plugin #4, erp 코어 원복 PR |
 | 4. import 3종, productstax0 | 완료 | erp_plugin #2 |
 | 5. vptop (hook + 코어 페이지 복사본 재작성) | 완료 | erp_plugin #3 |
+| 5-1. 자유 입력 줄 → 재고 제품 자동 연결 (공급사 주문 확정 시) + 비슷한 이름 정리 화면 | 완료 | erp_plugin #5 |
 | 6. 실행 시험 (PHP 8.5.12 + MariaDB 11.4) | 완료 — 각 PR 본문에 결과 | |
 
 Dolibarr 최신 릴리스는 2026-10-28 확인 기준 **24.0.2** 입니다.
 
 ## 남은 일 (코드 밖 / 오너 확인)
 
-- 오너 확인: 공급사 주문의 **제품 없는 자유 입력 줄 입고** 사용 여부 (24 코어가 막음, erp_plugin #3).
+- 해결: 자유 입력 줄 입고 — 공급사 주문 확정 시 제품으로 자동 연결 (erp_plugin #5). 운영 DB의 비슷한 이름은 업그레이드 후 설정 화면에서 묶음 (미리 보기: `vptop/doc/freeline_analysis.sql`).
 - 오너 확인: vptop 버그로 생긴 **잘못된 공급사 견적 ↔ 고객 견적 연결** 정리 여부 (erp_plugin #3).
 - 오너 확인: `*_test` PDF 템플릿 2개 실사용 여부 (안 쓰면 모듈에서 제외).
 - `importorderlines`는 13에서도 가져오기 처리 코드가 없었음 (버튼만 있음).
@@ -44,7 +45,7 @@ Dolibarr 최신 릴리스는 2026-10-28 확인 기준 **24.0.2** 입니다.
 
 ## 이어서 할 때
 
-1. 이 파일과 `PATCHES_24.md`, erp_plugin `dolibarr24` 브랜치의 PR #1~#4 본문을 읽습니다.
+1. 이 파일과 `PATCHES_24.md`, erp_plugin `dolibarr24` 브랜치의 PR #1~#5 본문을 읽습니다.
 2. 열린 PR이 있으면 그것부터 마무리합니다.
 3. 검증 환경 재구성 방법은 아래 "검증 환경"을 따릅니다.
 
@@ -60,7 +61,10 @@ Dolibarr 최신 릴리스는 2026-10-28 확인 기준 **24.0.2** 입니다.
 |---|---|---|
 | 설정 → 모듈 | `winsoft`, `vptop`, `importpropallines`, `importsupplierproposallines`, `importorderlines`, `productstax0` 활성화. 업그레이드한 DB에서는 **한 번 껐다 켜기** (hook·CSS·PDF 모델 등록) | 둘 다 |
 | 설정 → 기타 설정 | `WINSOFT_PDF_PRONEW_NO_TAX_SIGNATURE` = `0` (세금 제외 견적서 서명 없음) | winsoft만 |
+| VPtoP 설정 → Free text lines -> products | 과거 자유 입력 이름 중 비슷한 것을 제품으로 묶고 "과거 줄에 적용" (선택). 이후 공급사 주문 확정 때 자동 연결 | 두 회사 (각 DB) |
+| 재고 → 재고 실사 | 자동 생성된 제품(FL…)의 시작 재고를 실사로 맞춤 (과거 재고는 만들어지지 않음) | 두 회사 |
+| 설정 → 모듈 → 재고 | 입고 확정 시 재고 증가 / 출하 확정 시 재고 감소 설정 확인 | 두 회사 |
 | 회사 문서 폴더 | `signature.jpg` (견적서 서명 이미지) 새 환경에 있는지 확인 | 둘 다 |
 | 각 문서 모듈 설정 (견적·주문·송장·출하·공급사 문서) | 기본 PDF 모델이 기존 이름(pronew, invoice, pos …)으로 선택돼 있는지 확인 | 둘 다 |
 | 설정 → 모듈 → 다중 통화 | 활성 상태와 환율 확인 (공급사 견적 단가 유지 기능이 사용) | 둘 다 |
-| 설정 → 기타 설정 (선택) | 표준 동작으로 되돌릴 때만: `WINSOFT_PRODUCT_STATS_UNIT_PRICE=0`, `VPTOP_SUPPLIER_PROPOSAL_KEEP_MAIN_PRICE=0` | — |
+| 설정 → 기타 설정 (선택) | 표준 동작으로 되돌릴 때만: `WINSOFT_PRODUCT_STATS_UNIT_PRICE=0`, `VPTOP_SUPPLIER_PROPOSAL_KEEP_MAIN_PRICE=0`, `VPTOP_FREELINE_PRODUCT=0`. 자동 제품 코드 앞자리: `VPTOP_FREELINE_PRODUCT_PREFIX` (기본 FL) | — |
